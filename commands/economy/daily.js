@@ -3,7 +3,7 @@ const { EmbedBuilder } = require("discord.js");
 
 module.exports = {
   run: async ({ interaction }) => {
-    const dailyAmount = Math.floor(Math.random() * (5000 - 1000 + 1)) + 100; // random between 100 and 5000
+    const dailyAmount = 100000; // random between 1 and 100
 
     if (!interaction.inGuild()) {
       await interaction.reply({
@@ -25,9 +25,17 @@ module.exports = {
           userProfile.lastDailyCollected?.toDateString();
         const currentDate = new Date().toDateString();
         if (lastDailyCollected === currentDate) {
+          const now = new Date();
+          const nextDaily = new Date(now);
+          nextDaily.setUTCHours(24, 0, 0, 0); // Midnight UTC
+
+          const secondsUntil = Math.floor(
+            (nextDaily.getTime() - now.getTime()) / 1000
+          );
+          const cooldownTimestamp = Math.floor(nextDaily.getTime() / 1000); // UNIX time for Discord
+
           await interaction.editReply({
-            content:
-              "❌ You have already collected your dailies today. Come back tomorrow!",
+            content: `❌ You have already collected your dailies today.\n🕒 You can claim again <t:${cooldownTimestamp}:R>.`,
           });
           return;
         }

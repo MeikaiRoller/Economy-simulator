@@ -49,7 +49,7 @@ module.exports = {
       const chance = getRandomNumber(0, 100);
 
       // Success quest
-      let amount = getRandomNumber(10, 50); // 🎯 RANGE: 10-50
+      let amount = getRandomNumber(5000, 10000); // 🎯 RANGE: 5000-10000
 
       // Apply lootBoost if user has buffs
       if (activeBuffs.lootBoost) {
@@ -57,7 +57,18 @@ module.exports = {
       }
 
       userProfile.balance += amount;
-      cooldown.endsAt = new Date(Date.now() + 1); // still 5 min cooldown
+      // Base cooldown is 1 hour (60 min × 60 sec × 1000 ms)
+      let cooldownTime = 60 * 60 * 1000; // 3,600,000 ms
+
+      // Apply cooldown reduction from buffs (if any)
+      if (activeBuffs.cooldownReduction) {
+        // Cap at 80% maximum
+        const cooldownReduction = Math.min(activeBuffs.cooldownReduction, 80);
+
+        cooldownTime = Math.floor(cooldownTime * (1 - cooldownReduction / 100));
+      }
+
+      cooldown.endsAt = new Date(Date.now() + cooldownTime);
 
       await Promise.all([cooldown.save(), userProfile.save()]);
 

@@ -2,6 +2,10 @@ const { EmbedBuilder, ApplicationCommandOptionType } = require("discord.js");
 const UserProfile = require("../schema/UserProfile");
 const calculateActiveBuffs = require("../utils/calculateBuffs");
 
+function calculateXPForLevel(level) {
+  return Math.floor(100 * Math.pow(level, 1.5));
+}
+
 module.exports = {
   run: async ({ interaction }) => {
     if (!interaction.inGuild()) {
@@ -51,15 +55,30 @@ module.exports = {
         return `${percent}%`;
       };
 
+      const currentLevel = userProfile.level || 1;
+      const currentXP = userProfile.xp || 0;
+      const xpNeeded = calculateXPForLevel(currentLevel);
+
+      const currentHp = userProfile.hp || 100;
+      const currentMana = userProfile.mana || 100;
+
       const embed = new EmbedBuilder()
         .setTitle(`🧑‍💼 Nether Casino Profile: ${targetUser.username}`)
         .setThumbnail(targetUser.displayAvatarURL({ dynamic: true }))
         .addFields(
           { name: "🧪 Nether Sauce", value: `${balance}`, inline: true },
+          { name: "🎖️ Level", value: `Lv. ${currentLevel}`, inline: true },
+          {
+            name: "📈 XP Progress",
+            value: `${currentXP}/${xpNeeded} XP`,
+            inline: true,
+          },
+          { name: "❤️ HP", value: `${currentHp}`, inline: true },
+          { name: "🔮 Mana", value: `${currentMana}`, inline: true },
           {
             name: "📅 Last Daily Collected",
             value: `${lastDaily}`,
-            inline: true,
+            inline: false,
           },
           { name: "🕰️ Member Since", value: `${createdAt}`, inline: false },
           { name: "🎲 Games Played", value: `${gamesPlayed}`, inline: true },
@@ -106,7 +125,7 @@ module.exports = {
           },
           {
             name: "⏳ Cooldown Reduction",
-            value: formatBuff(buffs.cooldownReduction, true),
+            value: formatBuff(buffs.cooldownReduction),
             inline: true,
           }
         )

@@ -20,35 +20,43 @@ module.exports = {
     }
     await interaction.deferReply();
 
-    const guildId = interaction.guild.id;
-    let shop = await Shop.findOne({ guildId });
+    let shop = await Shop.findOne({});
 
     const now = new Date();
     if (!shop || shop.expiresAt <= now) {
       // time to refresh
       const allItems = await Item.find();
+      console.log("3Items:", allItems);
       // pick SHOP_SIZE random unique items
       const shuffled = allItems.sort(() => Math.random() - 0.5);
       const selection = shuffled.slice(0, SHOP_SIZE).map((i) => ({
         itemId: i.itemId,
       }));
-      console.log(shuffled); // Make sure this is showing items
+      console.log("Selected Items:", selection);
 
       const expiresAt = new Date(
         now.getTime() + REFRESH_HOURS * 60 * 60 * 1000
       );
 
+      // Update the global shop
       shop = await Shop.findOneAndUpdate(
-        { guildId },
+        {},
         { items: selection, expiresAt },
         { upsert: true, new: true }
       );
-      console.log(shop);
     }
 
     // fetch full item docs
-    const itemDocs = await Item.find({ itemId: { $in: shop.items } });
-    console.log(shop.items); // Verify the items are being saved properly
+    const itemIds = shop.items.map((item) => item.itemId);
+
+    // Fetch items in the correct order manually
+    const itemDocs = [];
+    for (const id of itemIds) {
+      const item = await Item.findOne({ itemId: id });
+      if (item) {
+        itemDocs.push(item);
+      }
+    }
 
     const embed = new EmbedBuilder()
       .setTitle("🎪 Nether Casino Shop")
@@ -61,9 +69,35 @@ module.exports = {
       .setTimestamp();
 
     // Add each item as a field
-    itemDocs.forEach((it) => {
+    itemDocs.forEach((it, index) => {
+      // Determine rarity color emoji
+      let rarityColor = "";
+
+      switch (it.rarity) {
+        case "Common":
+          rarityColor = "⚪"; // White circle
+          break;
+        case "Uncommon":
+          rarityColor = "🟢"; // Green circle
+          break;
+        case "Rare":
+          rarityColor = "🔵"; // Blue circle
+          break;
+        case "Epic":
+          rarityColor = "🟣"; // Purple circle
+          break;
+        case "Legendary":
+          rarityColor = "🟠"; // Orange circle
+          break;
+        default:
+          rarityColor = "⚪"; // fallback
+      }
+
+      // Add the numbered item field
       embed.addFields({
-        name: `${it.emoji} ${it.name} — ${it.price.toLocaleString()} 🧪`,
+        name: `${index + 1}. ${rarityColor} ${it.emoji} ${
+          it.name
+        } — ${it.price.toLocaleString()} 🧪`,
         value: it.description,
         inline: false,
       });

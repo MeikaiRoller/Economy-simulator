@@ -10,6 +10,12 @@ const UserProfileSchema = new mongoose.Schema({
   gamesWon: { type: Number, default: 0 },
   gamesLost: { type: Number, default: 0 },
 
+  // ---RPG STATS---
+  hp: { type: Number, default: 100 }, // Current HP
+  mana: { type: Number, default: 50 }, // Current Mana
+  xp: { type: Number, default: 0 }, // Current XP
+  level: { type: Number, default: 1 }, // Player level
+
   buffs: {
     lootBoost: { type: Number, default: 1 }, // % bonus to loot earned
     findRateBoost: { type: Number, default: 1 }, // % chance to find rare items

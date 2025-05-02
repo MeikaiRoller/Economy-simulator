@@ -105,7 +105,7 @@ module.exports = {
 // ===============================================
 async function playCoinflip(interaction, userProfile, amount) {
   const flip = Math.random();
-  const playerWon = flip >= 0.5;
+  const playerWon = flip >= 0.55;
 
   if (playerWon) {
     userProfile.balance += amount;
@@ -329,14 +329,19 @@ async function playHighLow(interaction, userProfile, amount) {
   let rounds = 0;
   const maxRounds = 5;
 
-  const sendEmbed = async (desc, components) => {
+  const sendEmbed = async (desc, stage = null) => {
     const embed = new EmbedBuilder()
       .setTitle("🔮 High-Low")
       .setDescription(desc)
       .setColor(0x2f3136)
       .setTimestamp();
 
-    await interaction.editReply({ embeds: [embed], components: [components] });
+    let components = [];
+    if (stage) {
+      components = [buttons(stage)];
+    }
+
+    await interaction.editReply({ embeds: [embed], components });
   };
 
   const buttons = (stage) => {
@@ -365,9 +370,10 @@ async function playHighLow(interaction, userProfile, amount) {
     }
   };
 
+  // Start the game
   await sendEmbed(
     `Your card is **${currentCard}**.\nHigher or Lower?`,
-    buttons("guess")
+    "guess"
   );
 
   const collector = interaction.channel.createMessageComponentCollector({
@@ -394,14 +400,13 @@ async function playHighLow(interaction, userProfile, amount) {
         userProfile.gamesLost += 1;
         await userProfile.save();
         await sendEmbed(
-          `❌ You lost!\nCard was **${currentCard}** → **${nextCard}**.`,
-          new ActionRowBuilder()
+          `❌ You lost!\nCard was **${currentCard}** → **${nextCard}**.`
         );
         collector.stop();
         return;
       }
 
-      winningsMultiplier *= 2;
+      winningsMultiplier *= 0.25;
       currentCard = nextCard;
       rounds++;
 
@@ -412,18 +417,17 @@ async function playHighLow(interaction, userProfile, amount) {
         userProfile.gamesWon += 1;
         await userProfile.save();
         await sendEmbed(
-          `🎉 Max streak! You win **${winnings.toLocaleString()} 🧪**!`,
-          new ActionRowBuilder()
+          `🎉 Max streak! You win **${winnings.toLocaleString()} 🧪**!`
         );
         collector.stop();
         return;
       }
 
       await sendEmbed(
-        `✅ Correct!\nNew card: **${currentCard}**\nCurrent Winnings: **${(
+        `✅ Correct! \nCurrent Winnings: **${(
           amount * winningsMultiplier
         ).toLocaleString()} 🧪**\n\nTake winnings or double again?`,
-        buttons("decision")
+        "decision"
       );
     } else if (i.customId === "take") {
       const winnings = amount * winningsMultiplier;
@@ -432,14 +436,13 @@ async function playHighLow(interaction, userProfile, amount) {
       userProfile.gamesWon += 1;
       await userProfile.save();
       await sendEmbed(
-        `🎉 You took **${winnings.toLocaleString()} 🧪** winnings!`,
-        new ActionRowBuilder()
+        `🎉 You took **${winnings.toLocaleString()} 🧪** winnings!`
       );
       collector.stop();
     } else if (i.customId === "double") {
       await sendEmbed(
         `Your card is **${currentCard}**.\nHigher or Lower?`,
-        buttons("guess")
+        "guess"
       );
     }
   });
@@ -500,17 +503,18 @@ async function playSlots(interaction, userProfile, amount) {
         winnings = amount * 4; // Cherry
         break;
       case "🍋":
+        3;
         winnings = amount * 3; // Lemon
         break;
       default:
         winnings = amount * 3; // fallback
     }
-    userProfile.balance += winnings;
+    userProfile.balance += winnings - amount;
     playerWon = true;
   } else if (first === second || first === third || second === third) {
     // Two match
     winnings = Math.floor(amount * 1.5);
-    userProfile.balance += winnings;
+    userProfile.balance += winnings - amount;
     playerWon = true;
   } else {
     // No match
