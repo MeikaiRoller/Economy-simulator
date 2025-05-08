@@ -6,6 +6,12 @@ const StockSchema = new mongoose.Schema({
   price: Number,
   volume: Number, // total shares in circulation
   availableShares: { type: Number, default: 0 },
+  volatility: {
+    type: String,
+    enum: ["low", "medium", "high"],
+    default: "medium"
+  },
+  
   lastUpdated: Date,
   history: [Number],
 });

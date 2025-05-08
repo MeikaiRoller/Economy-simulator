@@ -2,6 +2,8 @@ const { ApplicationCommandOptionType } = require("discord.js");
 const Stock = require("../../schema/Stock");
 const UserProfile = require("../../schema/UserProfile");
 const StockPortfolio = require("../../schema/StockPortfolio");
+const Bank = require("../../schema/Bank");
+
 
 module.exports = {
   data: {
@@ -48,7 +50,35 @@ module.exports = {
       );
     }
 
-    const proceeds = parseFloat((stock.price * quantity).toFixed(2));
+    const totalFloat = stock.availableShares + stock.volume;
+    const slippageFactor = 0.5;
+
+    let totalProceeds = 0;
+    let basePrice = stock.price;
+
+    for (let i = 1; i <= quantity; i++) {
+      const tradeRatio = i / totalFloat;
+      const pricePerUnit = basePrice * (1 - slippageFactor * tradeRatio);
+      totalProceeds += Math.max(0.01, pricePerUnit); // Prevent going to 0
+    }
+
+    const grossProceeds = parseFloat(totalProceeds.toFixed(2));
+    const avgBuyPrice = holding.averagePrice;
+    const gainPerShare = Math.max(0, stock.price - avgBuyPrice);
+    const totalGain = gainPerShare * quantity;
+
+    const taxRate = 0.10;
+    const tax = parseFloat((totalGain * taxRate).toFixed(2));
+    const proceeds = parseFloat((grossProceeds - tax).toFixed(2));
+
+
+    let bank = await Bank.findOne({ name: "central" }); //send money to bank
+    if (!bank) {
+      bank = new Bank({ name: "central", balance: 0 });
+    }
+    bank.balance += tax;
+    await bank.save();
+
 
     // Update user balance
     const user = await UserProfile.findOne({ userId });
@@ -64,21 +94,20 @@ module.exports = {
     }
     await portfolio.save();
 
-    // Increase available shares and reduce volume
+    // Market effects
     stock.availableShares += quantity;
     stock.volume -= quantity;
 
-    // Volume-aware price drop
-    const totalShares = stock.availableShares + stock.volume;
-    const relativeSize = quantity / totalShares;
-    const impactFactor = Math.log10(relativeSize * 100000 + 1) * 0.01;
-    let newPrice = stock.price * (1 - impactFactor);
+    // Final stock price adjusted based on last unit sold
+    const finalTradeRatio = quantity / totalFloat;
+    const priceImpact = slippageFactor * finalTradeRatio;
+    let newPrice = basePrice * (1 - priceImpact);
 
-    // Scarcity-based multiplier (even after selling)
-    if (totalShares > 0) {
+    // Scarcity-based multiplier
+    if (totalFloat > 0) {
       const scarcityFactor = 0.2;
       const scarcityMultiplier =
-        1 + (1 - stock.availableShares / totalShares) * scarcityFactor;
+        1 + (1 - stock.availableShares / totalFloat) * scarcityFactor;
       newPrice *= scarcityMultiplier;
     }
 
@@ -87,11 +116,15 @@ module.exports = {
     stock.history.push(stock.price);
     await stock.save();
 
+    const avgSold = proceeds / quantity;
+
     await interaction.editReply(
-      `✅ You sold **${quantity}** shares of **${symbol}** for **$${proceeds}**.\n` +
-        `🧪 New Balance: $${user.balance.toFixed(2)}\n` +
-        `📉 New ${symbol} price: **$${stock.price.toFixed(2)}**\n` +
-        `📦 Shares back in market: ${stock.availableShares}`
-    );
+      `✅ You sold **${quantity}** shares of **${symbol}** for **$${grossProceeds.toFixed(2)}**.\n` +
+      `💸 Sell Tax (10%): -$${tax.toFixed(2)}\n` +
+      `💵 You received: **$${proceeds.toFixed(2)}**\n` +
+      `🧪 New Balance: $${user.balance.toFixed(2)}\n` +
+      `📉 New ${symbol} price: **$${stock.price.toFixed(2)}**\n` +
+      `📦 Shares back in market: ${stock.availableShares}`
+    );    
   },
 };

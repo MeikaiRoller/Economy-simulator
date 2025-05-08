@@ -13,7 +13,9 @@
     "discord.js": "^14.19.1",
     "djs-commander": "^0.0.50",
     "dotenv": "^16.5.0",
+    "moment-timezone": "^0.5.48",
     "mongoose": "^8.14.0",
+    "node-cron": "^3.0.3",
     "pretty-ms": "^9.2.0"
   }
 }

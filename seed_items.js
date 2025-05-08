@@ -340,6 +340,9 @@ const items = [
       magicDefense: 1.0,
       lootBoost: 1.0,
       xpBoost: 1.0,
+      luck: 1.0,
+      healingBoost: 1.0,
+      findRateBoost: 1.0,
     },
     emoji: "🗿",
   },
@@ -385,7 +388,7 @@ const items = [
     rarity: "Epic",
     price: 100000,
     buffs: {
-      lootBoost: 0.5,
+      lootBoost: 0.25,
     },
     emoji: "🧭",
   },
@@ -396,7 +399,7 @@ const items = [
     rarity: "Legendary",
     price: 1800000,
     buffs: {
-      lootBoost: 2.5,
+      lootBoost: 3,
     },
     emoji: "👑",
   },

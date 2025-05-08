@@ -26,6 +26,12 @@ module.exports = {
   run: async ({ interaction }) => {
     await interaction.deferReply();
 
+    const volatilityLimits = {
+      low: null,
+      medium: 0.10,
+      high: 0.10,
+    };
+
     const userId = interaction.user.id;
     const symbol = interaction.options.getString("symbol").toUpperCase();
     const quantity = interaction.options.getInteger("quantity");
@@ -34,7 +40,6 @@ module.exports = {
       return interaction.editReply("❌ Quantity must be greater than 0.");
     }
 
-    // Lookup stock
     const stock = await Stock.findOne({ symbol });
     if (!stock) {
       return interaction.editReply(`❌ Stock "${symbol}" not found.`);
@@ -46,59 +51,77 @@ module.exports = {
       );
     }
 
-    const cost = parseFloat((stock.price * quantity).toFixed(2));
+    const totalFloat = stock.availableShares + stock.volume;
+    const slippageFactor = 0.5;
 
-    // Fetch user
-    const user = await UserProfile.findOne({ userId });
-    if (!user || user.balance < cost) {
-      return interaction.editReply(
-        "❌ You don't have enough balance to complete this purchase."
-      );
+    let totalCost = 0;
+    let basePrice = stock.price;
+
+    for (let i = 1; i <= quantity; i++) {
+      const tradeRatio = i / totalFloat;
+      const pricePerUnit = basePrice * (1 + slippageFactor * tradeRatio);
+      totalCost += pricePerUnit;
     }
 
-    // Deduct balance
-    user.balance -= cost;
-    await user.save();
+    const cost = parseFloat(totalCost.toFixed(2));
 
-    // Get or create portfolio
+    const user = await UserProfile.findOne({ userId });
+    if (!user || user.balance < cost) {
+      return interaction.editReply("❌ You don't have enough balance to complete this purchase.");
+    }
+
     let portfolio = await StockPortfolio.findOne({ userId });
     if (!portfolio) {
       portfolio = new StockPortfolio({ userId, holdings: [] });
     }
 
     let holding = portfolio.holdings.find((h) => h.symbol === symbol);
+
+    // 🛡️ Ownership cap logic BEFORE charging
+    const capPercent = volatilityLimits[stock.volatility];
+    if (capPercent !== null) {
+      const maxAllowed = Math.floor(totalFloat * capPercent);
+      const currentOwned = holding ? holding.quantity : 0;
+      const finalOwned = currentOwned + quantity;
+
+      if (finalOwned > maxAllowed) {
+        return interaction.editReply(
+          `⛔ You can’t own more than ${(capPercent * 100).toFixed(0)}% of **${symbol}** shares.\n` +
+          `🧾 You currently own **${currentOwned}**, and you're trying to buy **${quantity}**.\n` +
+          `🔐 Max allowed: **${maxAllowed}** shares.`
+        );
+      }
+    }
+
+    // ✅ All checks passed — apply changes
+    user.balance -= cost;
+    await user.save();
+
     if (holding) {
-      const totalCost = holding.averagePrice * holding.quantity + cost;
+      const totalHoldingCost = holding.averagePrice * holding.quantity + cost;
       holding.quantity += quantity;
-      holding.averagePrice = totalCost / holding.quantity;
+      holding.averagePrice = totalHoldingCost / holding.quantity;
     } else {
       portfolio.holdings.push({
         symbol,
         quantity,
-        averagePrice: stock.price,
+        averagePrice: basePrice,
       });
     }
 
     await portfolio.save();
 
-    // Update available shares
     stock.availableShares -= quantity;
     stock.volume += quantity;
 
-    const totalShares = stock.availableShares + stock.volume;
-    const relativeSize = quantity / totalShares;
+    const finalTradeRatio = quantity / totalFloat;
+    const priceImpact = slippageFactor * finalTradeRatio;
+    let newPrice = basePrice * (1 + priceImpact);
 
-    // Logarithmic price impact
-    const impactFactor = Math.log10(relativeSize * 100000 + 1) * 0.01;
-    let newPrice = stock.price * (1 + impactFactor);
-
-    // Scarcity adjustment
-    // Scarcity multiplier
-
-    if (totalShares > 0) {
-      const scarcityFactor = 0.2; // reduce this a bit
+    if (totalFloat > 0) {
+      const scarcityFactor = 0.2;
       const scarcityMultiplier =
-        1 + (1 - stock.availableShares / totalShares) * scarcityFactor;
+        1 + (1 - stock.availableShares / totalFloat) * scarcityFactor;
       newPrice *= scarcityMultiplier;
     }
 
@@ -107,8 +130,11 @@ module.exports = {
     stock.history.push(stock.price);
     await stock.save();
 
+    const avgPaid = cost / quantity;
+
     await interaction.editReply(
-      `✅ You bought **${quantity}** shares of **${symbol}** for **$${cost}**.\n` +
+      `✅ You bought **${quantity}** shares of **${symbol}** for **$${cost.toFixed(2)}**.\n` +
+        `💵 Avg Price Per Share: **$${avgPaid.toFixed(2)}**\n` +
         `🧪 Remaining Balance: $${user.balance.toFixed(2)}\n` +
         `📈 New ${symbol} price: **$${stock.price.toFixed(2)}**\n` +
         `📦 Shares left in market: ${stock.availableShares}`
