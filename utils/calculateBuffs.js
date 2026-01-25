@@ -18,15 +18,17 @@ async function calculateActiveBuffs(userProfile) {
     buffs.cooldownReduction += userProfile.buffs.cooldownReduction || 0;
   }
 
-  // 2. Then add the buffs from inventory items
-  if (userProfile.inventory?.length) {
-    for (const invItem of userProfile.inventory) {
-      const itemData = await Item.findOne({ itemId: invItem.itemId });
+  // 2. Then add the buffs from equipped items
+  if (userProfile.equipped) {
+    const equippedItemIds = Object.values(userProfile.equipped).filter(Boolean);
+    
+    for (const itemId of equippedItemIds) {
+      const itemData = await Item.findOne({ itemId });
       if (!itemData?.buffs) continue;
 
       for (const [buffName, value] of Object.entries(itemData.buffs)) {
         if (buffs[buffName] !== undefined) {
-          buffs[buffName] += value * invItem.quantity;
+          buffs[buffName] += value;
         }
       }
     }

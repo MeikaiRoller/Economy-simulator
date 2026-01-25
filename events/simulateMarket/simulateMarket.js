@@ -34,9 +34,23 @@ async function simulateMarket(client) {
       multiplier = 1 + (Math.random() * 0.02 - 0.01);
     }
 
+    // Random sector event (20% chance)
+    let sectorEvent = null;
+    if (Math.random() < 0.2) {
+      const sectors = ["tech", "food", "mystical", "entertainment"];
+      const randomSector = sectors[Math.floor(Math.random() * sectors.length)];
+      const isPositive = Math.random() < 0.6;
+      sectorEvent = {
+        sector: randomSector,
+        positive: isPositive,
+        multiplier: isPositive ? 1.08 : 0.92
+      };
+    }
+
     meta.sentiment = sentiment;
     meta.driftMultiplier = multiplier;
     meta.turnsRemaining = duration;
+    meta.sectorEvent = sectorEvent;
   } else {
     meta.turnsRemaining -= 1;
   }
@@ -51,40 +65,49 @@ async function simulateMarket(client) {
   };
 
   for (const stock of stocks) {
-    if (!stock.availableShares || stock.availableShares <= 0) continue;
+    if (!stock.totalIssued || stock.totalIssued <= 0) continue;
 
     const oldPrice = stock.price;
-
     let drift;
     const roll = Math.random();
-    let positiveBias = 0.55;
-    let magnitude;
+    let volatilityMultiplier;
 
+    // Volatility affects price movement range
     if (stock.volatility === "high") {
-      magnitude = Math.random() * 0.15;
-      positiveBias = 0.5;
+      volatilityMultiplier = 0.08; // 8% range
     } else if (stock.volatility === "low") {
-      magnitude = Math.random() * 0.02;
-      positiveBias = 0.6;
+      volatilityMultiplier = 0.015; // 1.5% range
     } else {
-      magnitude = Math.random() * 0.04;
-      positiveBias = 0.55;
+      volatilityMultiplier = 0.03; // 3% range
     }
 
-    if (roll < 0.05) {
-      drift = 1 + Math.random() * 0.2;
-    } else if (roll < 0.1) {
-      drift = 1 - Math.random() * 0.2;
-    } else {
-      drift = 1 + (Math.random() < positiveBias ? magnitude : -magnitude);
+    // Random walk with sentiment drift
+    const randomComponent = (Math.random() - 0.5) * 2 * volatilityMultiplier;
+    const sentimentComponent = meta.driftMultiplier - 1;
+    const momentumComponent = stock.momentum * 0.02; // Momentum adds up to 2% boost/penalty
+    drift = 1 + randomComponent + sentimentComponent * 0.5 + momentumComponent;
+
+    // Apply sector event if applicable
+    if (meta.sectorEvent && stock.sector === meta.sectorEvent.sector) {
+      drift *= meta.sectorEvent.multiplier;
     }
 
-    drift *= meta.driftMultiplier;
+    // Clamp drift to reasonable bounds
     drift = Math.min(Math.max(drift, 0.85), 1.15);
 
     let newPrice = stock.price * drift;
+    stock.price = parseFloat(Math.max(0.01, newPrice).toFixed(2));
 
-    stock.price = parseFloat(Math.max(0.30, newPrice).toFixed(2));
+    // Update momentum: trending up if price increased, down if decreased
+    const priceChange = stock.price - oldPrice;
+    if (priceChange > 0) {
+      stock.momentum = Math.min(stock.momentum + 0.2, 1); // Max momentum 1
+    } else if (priceChange < 0) {
+      stock.momentum = Math.max(stock.momentum - 0.2, -1); // Min momentum -1
+    } else {
+      stock.momentum *= 0.8; // Decay momentum if no movement
+    }
+
     stock.lastUpdated = new Date();
     stock.history.push(stock.price);
     if (stock.history.length > 500) {

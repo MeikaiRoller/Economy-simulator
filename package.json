@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
+    "start": "node index.js",
+    "seed": "node seed_stocks.js",
+    "seed:items": "node seed_items.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -14,6 +17,7 @@
     "djs-commander": "^0.0.50",
     "dotenv": "^16.5.0",
     "moment-timezone": "^0.5.48",
+    "mongodb": "^7.0.0",
     "mongoose": "^8.14.0",
     "node-cron": "^3.0.3",
     "pretty-ms": "^9.2.0"

@@ -6,6 +6,7 @@ const {
   ButtonStyle,
 } = require("discord.js");
 const UserProfile = require("../../schema/UserProfile");
+const Cooldown = require("../../schema/Cooldown");
 
 module.exports = {
   run: async ({ interaction }) => {
@@ -19,6 +20,16 @@ module.exports = {
 
     const game = interaction.options.getString("game");
     const amount = interaction.options.getInteger("amount");
+
+    // ✅ Bet validation
+    const MIN_BET = 100;
+    if (amount < MIN_BET) {
+      await interaction.reply({
+        content: `Minimum bet is ${MIN_BET.toLocaleString()} 🧪!`,
+        ephemeral: true,
+      });
+      return;
+    }
 
     if (amount <= 0) {
       await interaction.reply({
@@ -44,7 +55,49 @@ module.exports = {
 
       if (userProfile.balance < amount) {
         await interaction.editReply(
-          `You don't have enough nether sauce! Your balance is ${userProfile.balance}.`
+          `You don't have enough nether sauce! Your balance is ${userProfile.balance.toLocaleString()}.`
+        );
+        return;
+      }
+
+      // ✅ Check cooldown (5 min between gambles)
+      const existingCooldown = await Cooldown.findOne({
+        commandName: "casino",
+        userId: interaction.user.id,
+        endsAt: { $gt: new Date() },
+      });
+      if (existingCooldown) {
+        const secondsLeft = Math.ceil(
+          (existingCooldown.endsAt - new Date()) / 1000
+        );
+        await interaction.editReply(
+          `⏳ You're gambling too fast! Try again in ${secondsLeft}s.`
+        );
+        return;
+      }
+
+      // ✅ Max bet validation (10% of balance)
+      const maxBet = Math.floor(userProfile.balance * 0.1);
+      if (amount > maxBet) {
+        await interaction.editReply(
+          `❌ Max bet is 10% of your balance: ${maxBet.toLocaleString()} 🧪!`
+        );
+        return;
+      }
+
+      // ✅ Set cooldown (5 minutes)
+      const cooldownEnd = new Date(Date.now() + 5 * 60 * 1000);
+      await Cooldown.findOneAndUpdate(
+        { commandName: "casino", userId: interaction.user.id },
+        {
+          endsAt: cooldownEnd,
+        },
+        { upsert: true }
+      );
+
+      if (userProfile.balance < amount) {
+        await interaction.editReply(
+          `You don't have enough nether sauce! Your balance is ${userProfile.balance.toLocaleString()}.`
         );
         return;
       }
@@ -105,10 +158,12 @@ module.exports = {
 // ===============================================
 async function playCoinflip(interaction, userProfile, amount) {
   const flip = Math.random();
-  const playerWon = flip >= 0.55;
+  const playerWon = flip >= 0.50;
+  const HOUSE_RAKE = 0.05; // 5% house cut
 
   if (playerWon) {
-    userProfile.balance += amount;
+    const winnings = Math.floor(amount * (1 - HOUSE_RAKE));
+    userProfile.balance += winnings;
   } else {
     userProfile.balance -= amount;
   }
@@ -122,7 +177,7 @@ async function playCoinflip(interaction, userProfile, amount) {
   const result = playerWon ? "🪙 Heads" : "🪙 Tails";
   const outcome = playerWon ? "🎉 You Win!" : "❌ You Lose!";
   const winnings = playerWon
-    ? `+${amount.toLocaleString()} 🧪`
+    ? `+${Math.floor(amount * 0.95).toLocaleString()} 🧪 (5% rake)`
     : `-${amount.toLocaleString()} 🧪`;
 
   const embed = new EmbedBuilder()
@@ -232,7 +287,8 @@ async function playBlackjack(interaction, userProfile, betAmount) {
       let playerWon = false;
       if (dealerTotal > 21 || playerTotal > dealerTotal) {
         playerWon = true;
-        userProfile.balance += betAmount;
+        const winnings = Math.floor(betAmount * 0.95);
+        userProfile.balance += winnings;
       } else if (dealerTotal > playerTotal) {
         playerWon = false;
         userProfile.balance -= betAmount;
@@ -327,7 +383,7 @@ async function playHighLow(interaction, userProfile, amount) {
   let currentCard = Math.floor(Math.random() * 13) + 1;
   let winningsMultiplier = 1;
   let rounds = 0;
-  const maxRounds = 5;
+  const maxRounds = 4;
 
   const sendEmbed = async (desc, stage = null) => {
     const embed = new EmbedBuilder()
@@ -406,18 +462,19 @@ async function playHighLow(interaction, userProfile, amount) {
         return;
       }
 
-      winningsMultiplier *= 0.25;
+      winningsMultiplier *= 2;
       currentCard = nextCard;
       rounds++;
 
       if (rounds >= maxRounds) {
-        const winnings = amount * winningsMultiplier;
+        const grossWinnings = amount * winningsMultiplier;
+        const winnings = Math.floor(grossWinnings * 0.95);
         userProfile.balance += winnings;
         userProfile.gamesPlayed += 1;
         userProfile.gamesWon += 1;
         await userProfile.save();
         await sendEmbed(
-          `🎉 Max streak! You win **${winnings.toLocaleString()} 🧪**!`
+          `🎉 Max streak! You win **${winnings.toLocaleString()} 🧪** (5% rake)!`
         );
         collector.stop();
         return;
@@ -430,13 +487,14 @@ async function playHighLow(interaction, userProfile, amount) {
         "decision"
       );
     } else if (i.customId === "take") {
-      const winnings = amount * winningsMultiplier;
+      const grossWinnings = amount * winningsMultiplier;
+      const winnings = Math.floor(grossWinnings * 0.95);
       userProfile.balance += winnings;
       userProfile.gamesPlayed += 1;
       userProfile.gamesWon += 1;
       await userProfile.save();
       await sendEmbed(
-        `🎉 You took **${winnings.toLocaleString()} 🧪** winnings!`
+        `🎉 You took **${winnings.toLocaleString()} 🧪** winnings (5% rake)!`
       );
       collector.stop();
     } else if (i.customId === "double") {
@@ -483,6 +541,7 @@ async function playSlots(interaction, userProfile, amount) {
   const [first, second, third] = reels;
   let winnings = 0;
   let playerWon = false;
+  const HOUSE_RAKE = 0.05;
 
   if (first === second && second === third) {
     // Triple match special cases
@@ -509,12 +568,14 @@ async function playSlots(interaction, userProfile, amount) {
       default:
         winnings = amount * 3; // fallback
     }
-    userProfile.balance += winnings - amount;
+    const netWinnings = Math.floor(winnings * (1 - HOUSE_RAKE));
+    userProfile.balance += netWinnings - amount;
     playerWon = true;
   } else if (first === second || first === third || second === third) {
     // Two match
     winnings = Math.floor(amount * 1.5);
-    userProfile.balance += winnings - amount;
+    const netWinnings = Math.floor(winnings * (1 - HOUSE_RAKE));
+    userProfile.balance += netWinnings - amount;
     playerWon = true;
   } else {
     // No match
@@ -529,8 +590,8 @@ async function playSlots(interaction, userProfile, amount) {
   await userProfile.save();
 
   const result = playerWon
-    ? `🎉 YOU WON **${winnings.toLocaleString()} 🧪**!`
-    : `❌ You lost **${amount.toLocaleString()} 🧪**.`;
+    ? `🎉 YOU WON **${Math.floor(winnings * 0.95).toLocaleString()} 🧪** (5% rake)!`
+    : `❌ You lost **${amount.toLocaleString()} 🧪**.`;;
 
   const finalEmbed = new EmbedBuilder()
     .setTitle("🎰 Slot Machine Result")

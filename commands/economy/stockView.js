@@ -16,40 +16,62 @@ module.exports = {
       return interaction.editReply("📭 No stocks available in the market.");
     }
 
-    const lowVol = stocks.filter((s) => s.volatility === "low");
-    const medVol = stocks.filter((s) => s.volatility === "medium");
-    const highVol = stocks.filter((s) => s.volatility === "high");
+    // Group by sector
+    const bySector = {};
+    for (const stock of stocks) {
+      if (!bySector[stock.sector]) {
+        bySector[stock.sector] = [];
+      }
+      bySector[stock.sector].push(stock);
+    }
 
-    const formatWithTotal = (s) => {
-      const total = s.availableShares + s.volume;
-      return `**${s.symbol}** — ${s.name}\n🧪 $${s.price.toFixed(2)} | 📦 Volume: ${s.volume.toLocaleString()} / ${total.toLocaleString()}`;
+    const formatStock = (s) => {
+      const marketCap = (s.price * s.totalIssued / 1_000_000).toFixed(1);
+      const ownership = ((s.volume / s.totalIssued) * 100).toFixed(1);
+      
+      let momentumEmoji = "➡️";
+      if (s.momentum > 0.3) momentumEmoji = "📈📈";
+      else if (s.momentum > 0) momentumEmoji = "📈";
+      else if (s.momentum < -0.3) momentumEmoji = "📉📉";
+      else if (s.momentum < 0) momentumEmoji = "📉";
+      
+      const volatilityBadge =
+        s.volatility === "low"
+          ? "🟢"
+          : s.volatility === "medium"
+          ? "🟡"
+          : "🔴";
+
+      return (
+        `${volatilityBadge} **${s.symbol}** — ${s.name}\n` +
+        `💰 $${s.price.toFixed(2)} | Market Cap: $${marketCap}M\n` +
+        `📊 Owned: ${ownership}% | Traded: ${(s.totalVolumeTraded || 0).toLocaleString()} shares\n` +
+        `${momentumEmoji} Momentum: ${(s.momentum * 100).toFixed(0)}%`
+      );
     };
 
-    const formatBasic = (s) =>
-      `**${s.symbol}** — ${s.name}\n🧪 $${s.price.toFixed(2)} | 📦 Volume: ${s.volume.toLocaleString()}`;
+    const sectorEmojis = {
+      tech: "💻",
+      food: "🍔",
+      mystical: "🔮",
+      entertainment: "🎬",
+    };
 
     const embed = new EmbedBuilder()
-      .setTitle("📈 Available Stocks")
-      .setColor(0x3498db);
+      .setTitle("📈 Stock Market Overview")
+      .setColor(0x3498db)
+      .setFooter({
+        text: "Green = Stable | Yellow = Medium Risk | Red = High Risk",
+      })
+      .setTimestamp();
 
-    if (lowVol.length > 0) {
+    for (const [sector, sectorStocks] of Object.entries(bySector)) {
+      const emoji = sectorEmojis[sector] || "📊";
+      const title = `${emoji} ${sector.charAt(0).toUpperCase() + sector.slice(1)}`;
       embed.addFields({
-        name: "🟢 Low Volatility",
-        value: lowVol.map(formatBasic).join("\n\n"),
-      });
-    }
-
-    if (medVol.length > 0) {
-      embed.addFields({
-        name: "🟡 Medium Volatility",
-        value: medVol.map(formatWithTotal).join("\n\n"),
-      });
-    }
-
-    if (highVol.length > 0) {
-      embed.addFields({
-        name: "🔴 High Volatility",
-        value: highVol.map(formatWithTotal).join("\n\n"),
+        name: title,
+        value: sectorStocks.map(formatStock).join("\n\n"),
+        inline: false,
       });
     }
 

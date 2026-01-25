@@ -5,92 +5,99 @@ require("dotenv").config();
 const defaultStocks = [
   {
     symbol: "SAUCE",
-    name: "Nether Sauce Inc.",
+    name: "Nether Sauce Co.",
     price: 4.25,
-    availableShares: 100_000_000,
-    volatility: "low"
+    totalIssued: 100_000_000,
+    volatility: "low",
+    sector: "food"
   },
   {
     symbol: "STEVE",
-    name: "Steve's Chicken",
+    name: "Steve's Poultry Farm",
     price: 8.5,
-    availableShares: 100_000_000,
-    volatility: "low"
+    totalIssued: 100_000_000,
+    volatility: "low",
+    sector: "food"
   },
   {
     symbol: "MEIKAI",
-    name: "Meikai's Kindred Inc.",
+    name: "Meikai Epic Corp",
     price: 15.75,
-    availableShares: 100_000_000,
-    volatility: "low"
+    totalIssued: 100_000_000,
+    volatility: "low",
+    sector: "mystical"
   },
   {
     symbol: "JUSTIN",
-    name: "Baddie Alert",
+    name: "Justin's Entertainment Labs",
     price: 3.4,
-    availableShares: 100_000_000,
-    volatility: "low"
+    totalIssued: 100_000_000,
+    volatility: "low",
+    sector: "entertainment"
   },
   {
     symbol: "CHICKEN",
-    name: "Chicken Jockey",
+    name: "Chicken Jockey Racing",
     price: 11.25,
-    availableShares: 100_000_000,
-    volatility: "low"
+    totalIssued: 100_000_000,
+    volatility: "low",
+    sector: "food"
   },
   //-- Medium Volatility Stocks --//
   {
     symbol: "ETHAN",
-    name: "Ethan Head Solutions",
+    name: "Ethan's Tech Solutions",
     price: 9.85,
-    availableShares: 850_000,
-    volatility: "medium"
+    totalIssued: 850_000,
+    volatility: "medium",
+    sector: "tech"
   },
   {
     symbol: "MOON",
-    name: "Definitely not going to the moon",
+    name: "Moon Labs (Not Going Up)",
     price: 6.25,
-    availableShares: 700_000,
-    volatility: "medium"
+    totalIssued: 700_000,
+    volatility: "medium",
+    sector: "tech"
   },
   {
     symbol: "FLOP",
-    name: "Flopper dude",
+    name: "Flopper Entertainment",
     price: 4.60,
-    availableShares: 1_000_000,
-    volatility: "medium"
+    totalIssued: 1_000_000,
+    volatility: "medium",
+    sector: "entertainment"
   },
   //-- High Volatility Stocks --//
   {
     symbol: "GOON",
-    name: "Gooners United",
+    name: "Goon Squad Entertainment",
     price: 3.75,
-    availableShares: 400_000,
-    volatility: "high"
+    totalIssued: 400_000,
+    volatility: "high",
+    sector: "entertainment"
   },
   {
     symbol: "DRAKE",
-    name: "Nah bro is drakin it",
+    name: "Drake's Drakin' Records",
     price: 1.95,
-    availableShares: 250_000,
-    volatility: "high"
+    totalIssued: 250_000,
+    volatility: "high",
+    sector: "entertainment"
   },
   {
     symbol: "MARIE",
-    name: "huh, how did that get there",
+    name: "Marie's Short Vibes",
     price: 2.45,
-    availableShares: 500_000,
-    volatility: "high"
+    totalIssued: 500_000,
+    volatility: "high",
+    sector: "mystical"
   },
-  
-  //-- Extremely Volatility Stocks --//
-  
-  
 ];
 
 (async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI); // ✅ match the env name
+    await mongoose.connect(process.env.MONGO_URI);
 
     console.log("Connected to MongoDB");
 
@@ -104,21 +111,19 @@ const defaultStocks = [
           volume: 0,
           lastUpdated: new Date(),
           history: [stockData.price],
-          volatility: stockData.volatility || "medium", // default if not specified
         });
         await stock.save();
         console.log(`✅ Added new stock ${stock.symbol}`);
       } else {
-        // Existing stock, only add missing fields like 'volatility'
-        const updates = {};
-    
-        if (!existing.volatility) {
-          updates.volatility = stockData.volatility || "medium";
-        }
-    
-        if (Object.keys(updates).length > 0) {
+        // Existing stock, update to use new schema
+        const updates = {
+          totalIssued: stockData.totalIssued,
+          volatility: stockData.volatility || "medium",
+        };
+        // Only update if not already set
+        if (!existing.totalIssued) {
           await Stock.updateOne({ symbol: stockData.symbol }, { $set: updates });
-          console.log(`✏️ Updated ${stockData.symbol} with missing fields`);
+          console.log(`✏️ Updated ${stockData.symbol} with new schema`);
         } else {
           console.log(`🔒 Skipped ${stockData.symbol} — already up-to-date`);
         }

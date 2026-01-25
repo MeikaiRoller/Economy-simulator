@@ -1,6 +1,9 @@
 const BETTING_CONFIG = {
-    cutoffHour: 12,
-    timezone: "America/Toronto",
-    winningsPerPlayer: 500_000
-  };
+  timezone: "America/Toronto",
+  betAmount: 10_000, // Fixed bet amount
+  houseRake: 15, // 15% house cut
+  bettingCutoffMinute: 55, // Can't bet after :55 past the hour
+};
+
+module.exports = { BETTING_CONFIG };
   

@@ -1,11 +1,13 @@
-require("dotenv/config");
+require("dotenv").config();
 const { Client, IntentsBitField } = require("discord.js");
 const { CommandHandler } = require("djs-commander");
 const mongoose = require("mongoose");
 const path = require("path");
 const cron = require("node-cron");
 const resolveHorseRace = require("./utils/resolveHorseRace");
+const announceHorseLineup = require("./utils/announceHorseLineup");
 const simulateMarket = require("./events/simulateMarket/simulateMarket");
+const payDividends = require("./utils/payDividends");
 
 const client = new Client({
   intents: [
@@ -16,21 +18,30 @@ const client = new Client({
   ],
 });
 
-// 💸 Schedule horse race resolver at 12PM Toronto time once client is ready
-client.once("ready", () => {
-  console.log(`🟢 Logged in as ${client.user.tag}`);
+  // 💸 Schedule horse race resolver at 12PM Toronto time once client is ready
+  client.once("ready", () => {
+    console.log(`🟢 Logged in as ${client.user.tag}`);
 
-  cron.schedule(
-    "0 12 * * *",
-    () => {
-      console.log("🏁 Running horse race resolver...");
-      resolveHorseRace(client);
-    },
-    {
-      timezone: "America/Toronto",
-    }
-  );
-});
+    // 🐎 Schedule hourly horse race resolver and lineup announcement
+    cron.schedule(
+      "0 * * * *",
+      async () => {
+        console.log("🏁 Running hourly horse race resolver...");
+        await resolveHorseRace(client).catch(console.error);
+        console.log("📢 Announcing new race lineup...");
+        await announceHorseLineup(client).catch(console.error);
+      },
+      {
+        timezone: "America/Toronto",
+      }
+    );
+
+    // 💰 Schedule dividend payouts monthly (1st of month at midnight)
+    cron.schedule("0 0 1 * *", () => {
+      console.log("💰 Processing monthly dividend payouts...");
+      payDividends().catch(console.error);
+    });
+  });
 
 // 📈 Run market simulation every 5 mins
 setInterval(() => {
@@ -47,7 +58,7 @@ new CommandHandler({
 
 // 🧬 Connect to Mongo and start the bot
 (async () => {
-  await mongoose.connect(process.env.MONGODB_URI);
+  await mongoose.connect(process.env.MONGO_URI);
   console.log("Connected to Database.");
   client.login(process.env.TOKEN);
 })();

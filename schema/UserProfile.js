@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const UserProfileSchema = new mongoose.Schema({
   userId: { type: String, required: true, unique: true },
   balance: { type: Number, default: 0 },
+  bankBalance: { type: Number, default: 0 },
   lastDailyCollected: { type: Date, default: null },
   createdAt: { type: Date, default: Date.now },
 
@@ -17,17 +18,17 @@ const UserProfileSchema = new mongoose.Schema({
   level: { type: Number, default: 1 }, // Player level
 
   buffs: {
-    lootBoost: { type: Number, default: 1 }, // % bonus to loot earned
-    findRateBoost: { type: Number, default: 1 }, // % chance to find rare items
-    cooldownReduction: { type: Number, default: 1 }, // % reduction on cooldowns
-    attackBoost: { type: Number, default: 1 }, // % bonus to attack power
-    defenseBoost: { type: Number, default: 1 }, // % bonus to defense power
-    magicBoost: { type: Number, default: 1 }, // % bonus to magic power
-    magicDefenseBoost: { type: Number, default: 1 }, // % bonus to magic defense
-    criticalChance: { type: Number, default: 1 }, // % bonus to critical hit chance
-    xpBoost: { type: Number, default: 1 }, // % bonus to XP gained
-    healingBoost: { type: Number, default: 1 }, // % bonus to healing done
-    luckBoost: { type: Number, default: 1 }, // % bonus to luck events
+    lootBoost: { type: Number, default: 0 },
+    findRateBoost: { type: Number, default: 0 },
+    cooldownReduction: { type: Number, default: 0 },
+    attackBoost: { type: Number, default: 0 },
+    defenseBoost: { type: Number, default: 0 },
+    magicBoost: { type: Number, default: 0 },
+    magicDefenseBoost: { type: Number, default: 0 },
+    criticalChance: { type: Number, default: 0 },
+    xpBoost: { type: Number, default: 0 },
+    healingBoost: { type: Number, default: 0 },
+    luckBoost: { type: Number, default: 0 },
   },
 
   inventory: [
@@ -36,6 +37,15 @@ const UserProfileSchema = new mongoose.Schema({
       quantity: { type: Number, default: 1 },
     },
   ],
+
+  equipped: {
+    weapon: { type: String, default: null },
+    head: { type: String, default: null },
+    chest: { type: String, default: null },
+    hands: { type: String, default: null },
+    feet: { type: String, default: null },
+    accessory: { type: String, default: null }, // Only 1 accessory slot
+  },
 });
 
 module.exports = mongoose.model("UserProfile", UserProfileSchema);

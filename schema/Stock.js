@@ -4,14 +4,20 @@ const StockSchema = new mongoose.Schema({
   symbol: { type: String, required: true, unique: true },
   name: String,
   price: Number,
-  volume: Number, // total shares in circulation
-  availableShares: { type: Number, default: 0 },
+  volume: Number, // shares in circulation (owned by players)
+  totalIssued: Number, // total shares ever created (fixed at seed)
+  totalVolumeTraded: { type: Number, default: 0 }, // cumulative shares traded
   volatility: {
     type: String,
     enum: ["low", "medium", "high"],
     default: "medium"
   },
-  
+  sector: {
+    type: String,
+    enum: ["tech", "food", "mystical", "entertainment"],
+    default: "mystical"
+  },
+  momentum: { type: Number, default: 0 }, // -1 to 1: trending down to up
   lastUpdated: Date,
   history: [Number],
 });

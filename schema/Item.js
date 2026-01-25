@@ -9,6 +9,15 @@ const ItemSchema = new mongoose.Schema({
     enum: ["Common", "Uncommon", "Rare", "Epic", "Legendary"],
     default: "Common",
   },
+  type: {
+    type: String,
+    enum: ["equippable", "consumable"],
+    default: "equippable",
+  },
+  slot: {
+    type: String,
+    enum: ["weapon", "head", "chest", "hands", "feet", "accessory"],
+  },
   price: { type: Number, default: 0 },
   emoji: { type: String },
   buffs: {

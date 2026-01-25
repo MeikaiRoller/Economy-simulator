@@ -3,7 +3,7 @@ const { EmbedBuilder } = require("discord.js");
 
 module.exports = {
   run: async ({ interaction }) => {
-    const dailyAmount = 100000; // random between 1 and 100
+    const dailyAmount = 5000; // Daily login reward - balanced amount
 
     if (!interaction.inGuild()) {
       await interaction.reply({

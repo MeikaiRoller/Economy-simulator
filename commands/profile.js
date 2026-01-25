@@ -1,5 +1,8 @@
 const { EmbedBuilder, ApplicationCommandOptionType } = require("discord.js");
 const UserProfile = require("../schema/UserProfile");
+const StockPortfolio = require("../schema/StockPortfolio");
+const Stock = require("../schema/Stock");
+const Item = require("../schema/Item");
 const calculateActiveBuffs = require("../utils/calculateBuffs");
 
 function calculateXPForLevel(level) {
@@ -18,137 +21,136 @@ module.exports = {
 
     await interaction.deferReply();
 
-    const targetUser =
-      interaction.options.getUser("target-user") || interaction.user;
-    const targetUserId = targetUser.id;
-
     try {
-      const userProfile = await UserProfile.findOne({ userId: targetUserId });
+      const targetUser =
+        interaction.options.getUser("target-user") || interaction.user;
+      const userProfile = await UserProfile.findOne({ userId: targetUser.id });
 
       if (!userProfile) {
         await interaction.editReply({
-          content:
-            targetUserId === interaction.user.id
-              ? "❌ You don't have a profile yet! Use `/create-profile` first."
-              : "❌ That user doesn't have a profile yet!",
+          content: "❌ That user doesn't have a profile yet!",
         });
         return;
       }
 
-      const balance = userProfile.balance.toLocaleString();
-      const lastDaily = userProfile.lastDailyCollected
-        ? userProfile.lastDailyCollected.toDateString()
-        : "Not collected yet";
-      const createdAt = userProfile.createdAt
-        ? userProfile.createdAt.toDateString()
-        : "Unknown";
+      // Build safe string values
+      const balance = `$${(userProfile.balance || 0).toLocaleString()}`;
+      const bank = `$${(userProfile.bankBalance || 0).toLocaleString()}`;
+      
+      // Calculate total assets
+      let stockValue = 0;
+      let inventoryValue = 0;
+      
+      try {
+        // Get stock portfolio value
+        const portfolio = await StockPortfolio.findOne({ userId: targetUser.id });
+        if (portfolio?.stocks?.length) {
+          for (const holding of portfolio.stocks) {
+            const stock = await Stock.findOne({ stockId: holding.stockId });
+            if (stock) {
+              stockValue += (holding.shares || 0) * (stock.currentPrice || 0);
+            }
+          }
+        }
+        
+        // Get inventory item values
+        if (userProfile.inventory?.length) {
+          for (const invItem of userProfile.inventory) {
+            const item = await Item.findOne({ itemId: invItem.itemId });
+            if (item) {
+              inventoryValue += (item.price || 0) * (invItem.quantity || 1);
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Asset calculation error:", e);
+      }
+      
+      const cashTotal = (userProfile.balance || 0) + (userProfile.bankBalance || 0);
+      const netWorth = `$${(cashTotal + stockValue + inventoryValue).toLocaleString()}`;
+      const breakdown = `Cash: $${cashTotal.toLocaleString()} | Stocks: $${stockValue.toLocaleString()} | Items: $${inventoryValue.toLocaleString()}`;
+      const level = userProfile.level || 1;
+      const currentXP = userProfile.xp || 0;
+      const xpNeeded = calculateXPForLevel(level);
+      const xpPercent = Math.floor((currentXP / xpNeeded) * 100);
+      const xpBar = `${'█'.repeat(Math.floor(xpPercent / 5))}${'░'.repeat(20 - Math.floor(xpPercent / 5))} ${xpPercent}%`;
+      const hp = userProfile.hp || 100;
+      const played = userProfile.gamesPlayed || 0;
+      const won = userProfile.gamesWon || 0;
+      const lost = userProfile.gamesLost || 0;
+      const winRate = played > 0 ? ((won / played) * 100).toFixed(1) : 0;
 
-      const gamesPlayed = userProfile.gamesPlayed?.toLocaleString() || "0";
-      const gamesWon = userProfile.gamesWon?.toLocaleString() || "0";
-      const gamesLost = userProfile.gamesLost?.toLocaleString() || "0";
+      // Get equipped items
+      let equipmentList = "❌ None";
+      const equipped = [];
+      if (userProfile.equipped?.weapon) equipped.push(`⚔️ **Weapon:** ${userProfile.equipped.weapon}`);
+      if (userProfile.equipped?.head) equipped.push(`👑 **Head:** ${userProfile.equipped.head}`);
+      if (userProfile.equipped?.chest) equipped.push(`🧥 **Chest:** ${userProfile.equipped.chest}`);
+      if (userProfile.equipped?.hands) equipped.push(`🤚 **Hands:** ${userProfile.equipped.hands}`);
+      if (userProfile.equipped?.feet) equipped.push(`🥾 **Feet:** ${userProfile.equipped.feet}`);
+      if (userProfile.equipped?.accessory) equipped.push(`💎 **Accessory:** ${userProfile.equipped.accessory}`);
+      if (equipped.length > 0) equipmentList = equipped.join("\n");
 
-      const buffs = await calculateActiveBuffs(userProfile);
+      // Get buffs (safe)
+      let buffs = { attack: 0, defense: 0, magic: 0, magicDefense: 0, critChance: 0, xpBoost: 0, healingBoost: 0, luck: 0, lootBoost: 0, findRateBoost: 0, cooldownReduction: 0 };
+      try {
+        buffs = await calculateActiveBuffs(userProfile);
+      } catch (e) {
+        console.error("Buff calculation error:", e);
+      }
 
-      const formatBuff = (value) => {
-        const val = (value ?? 1) - 1;
-        const percent = Math.floor(val * 100);
-        return `${percent}%`;
+      const formatBuff = (val) => {
+        const num = Number(val) || 0;
+        const percent = Math.round(num * 100);
+        if (percent === 0) return "➖ 0%";
+        if (percent > 0) return `📈 +${percent}%`;
+        return `📉 ${percent}%`;
       };
 
-      const currentLevel = userProfile.level || 1;
-      const currentXP = userProfile.xp || 0;
-      const xpNeeded = calculateXPForLevel(currentLevel);
-
-      const currentHp = userProfile.hp || 100;
-      const currentMana = userProfile.mana || 100;
-
       const embed = new EmbedBuilder()
-        .setTitle(`🧑‍💼 Nether Casino Profile: ${targetUser.username}`)
-        .setThumbnail(targetUser.displayAvatarURL({ dynamic: true }))
+        .setTitle(`⚔️ ${targetUser.username}'s Profile`)
+        .setThumbnail(targetUser.displayAvatarURL())
+        .setDescription(`*A mighty adventurer of the realm*`)
         .addFields(
-          { name: "🧪 Nether Sauce", value: `${balance}`, inline: true },
-          { name: "🎖️ Level", value: `Lv. ${currentLevel}`, inline: true },
-          {
-            name: "📈 XP Progress",
-            value: `${currentXP}/${xpNeeded} XP`,
-            inline: true,
-          },
-          { name: "❤️ HP", value: `${currentHp}`, inline: true },
-          { name: "🔮 Mana", value: `${currentMana}`, inline: true },
-          {
-            name: "📅 Last Daily Collected",
-            value: `${lastDaily}`,
-            inline: false,
-          },
-          { name: "🕰️ Member Since", value: `${createdAt}`, inline: false },
-          { name: "🎲 Games Played", value: `${gamesPlayed}`, inline: true },
-          { name: "🏆 Games Won", value: `${gamesWon}`, inline: true },
-          { name: "💔 Games Lost", value: `${gamesLost}`, inline: true },
-          { name: "\u200B", value: "**__Active Buffs__**", inline: false },
-          { name: "⚔️ Attack", value: formatBuff(buffs.attack), inline: true },
-          {
-            name: "🛡️ Defense",
-            value: formatBuff(buffs.defense),
-            inline: true,
-          },
-          { name: "🪄 Magic", value: formatBuff(buffs.magic), inline: true },
-          {
-            name: "✨ Magic Defense",
-            value: formatBuff(buffs.magicDefense),
-            inline: true,
-          },
-          {
-            name: "🎯 Crit Chance",
-            value: formatBuff(buffs.critChance),
-            inline: true,
-          },
-          {
-            name: "📝 XP Boost",
-            value: formatBuff(buffs.xpBoost),
-            inline: true,
-          },
-          {
-            name: "❤️ Healing Boost",
-            value: formatBuff(buffs.healingBoost),
-            inline: true,
-          },
-          { name: "🍀 Luck", value: formatBuff(buffs.luck), inline: true },
-          {
-            name: "🧪 Loot Boost",
-            value: formatBuff(buffs.lootBoost),
-            inline: true,
-          },
-          {
-            name: "🔍 Find Rate Boost",
-            value: formatBuff(buffs.findRateBoost),
-            inline: true,
-          },
-          {
-            name: "⏳ Cooldown Reduction",
-            value: formatBuff(buffs.cooldownReduction),
-            inline: true,
-          }
+          // Wealth Section
+          { name: "💰 WEALTH", value: `Wallet: ${balance}\nBank: ${bank}\n**Net Worth: ${netWorth}**\n\`${breakdown}\``, inline: false },
+          
+          // Stats Section
+          { name: "🎮 CHARACTER STATS", value: `**Level:** ${level}\n**Experience:** ${currentXP}/${xpNeeded}\n${xpBar}\n**HP:** ${hp}/100`, inline: false },
+          
+          // Gaming Section
+          { name: "🎲 GAMING RECORD", value: `Played: **${played}**\nWins: **${won}** | Losses: **${lost}**\nWin Rate: **${winRate}%**`, inline: false },
+          
+          // Equipment Section
+          { name: "🛡️ EQUIPMENT", value: equipmentList, inline: false },
+          
+          // Buffs Section - Organized by type
+          { name: "⚔️ OFFENSIVE", value: `Attack: ${formatBuff(buffs.attack)}\nCrit: ${formatBuff(buffs.critChance)}\nMagic: ${formatBuff(buffs.magic)}`, inline: true },
+          { name: "🛡️ DEFENSIVE", value: `Defense: ${formatBuff(buffs.defense)}\nMag Def: ${formatBuff(buffs.magicDefense)}\nHealing: ${formatBuff(buffs.healingBoost)}`, inline: true },
+          { name: "🌟 UTILITY", value: `XP Boost: ${formatBuff(buffs.xpBoost)}\nLoot: ${formatBuff(buffs.lootBoost)}\nLuck: ${formatBuff(buffs.luck)}`, inline: true },
+          { name: "🔍 DISCOVERY", value: `Find Rate: ${formatBuff(buffs.findRateBoost)}\nCooldown Reduction: ${formatBuff(buffs.cooldownReduction)}`, inline: false }
         )
-        .setColor(0x2f3136)
+        .setColor(0x00ff41)
+        .setFooter({ text: `Profile created • Use /inv to manage items`, iconURL: targetUser.displayAvatarURL() })
         .setTimestamp();
 
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {
-      console.error(`Error handling /profile: ${error}`);
+      console.error(`Error in /profile: ${error.message}`);
+      console.error(error);
       await interaction.editReply({
-        content:
-          "❌ There was an error fetching the profile. Please try again later!",
+        content: "❌ Error fetching profile. Check console for details.",
       });
     }
   },
 
   data: {
     name: "profile",
-    description: "View your Nether Casino profile or someone else's!",
+    description: "View your profile!",
     options: [
       {
         name: "target-user",
-        description: "The user whose profile you want to view.",
+        description: "User to view",
         type: ApplicationCommandOptionType.User,
         required: false,
       },

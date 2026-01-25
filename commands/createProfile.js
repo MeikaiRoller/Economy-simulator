@@ -25,15 +25,44 @@ module.exports = {
       }
 
       userProfile = new UserProfile({
-        userId: userId,
-        balance: 0,
-        lastDailyCollected: null,
+        userId,
+        balance: 50000,
+        bankBalance: 0,
+        gamesPlayed: 0,
+        gamesWon: 0,
+        gamesLost: 0,
+        hp: 100,
+        mana: 50,
+        xp: 0,
+        level: 1,
+        buffs: {
+          attackBoost: 0,
+          defenseBoost: 0,
+          magicBoost: 0,
+          magicDefenseBoost: 0,
+          criticalChance: 0,
+          xpBoost: 0,
+          healingBoost: 0,
+          luckBoost: 0,
+          lootBoost: 0,
+          findRateBoost: 0,
+          cooldownReduction: 0,
+        },
+        inventory: [],
+        equipped: {
+          weapon: null,
+          head: null,
+          chest: null,
+          hands: null,
+          feet: null,
+          accessory: null,
+        },
       });
 
       await userProfile.save();
 
       await interaction.editReply({
-        content: "✅ Profile created successfully! You can now start gambling!",
+        content: "✅ Profile created successfully with $50,000 starting balance!",
       });
     } catch (error) {
       console.error(`Error handling /create-profile: ${error}`);
@@ -46,6 +75,6 @@ module.exports = {
 
   data: {
     name: "create-profile",
-    description: "Create your profile to start playing in the Nether Casino!",
+    description: "Create your profile to start playing!",
   },
 };
