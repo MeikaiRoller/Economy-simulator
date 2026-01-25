@@ -108,6 +108,7 @@ const defaultStocks = [
         // New stock, create it fully
         const stock = new Stock({
           ...stockData,
+          fundamentalPrice: stockData.price, // Set fundamental for mean reversion
           volume: 0,
           lastUpdated: new Date(),
           history: [stockData.price],
@@ -120,6 +121,10 @@ const defaultStocks = [
           totalIssued: stockData.totalIssued,
           volatility: stockData.volatility || "medium",
         };
+        // Set fundamental price if not already set
+        if (!existing.fundamentalPrice) {
+          updates.fundamentalPrice = stockData.price;
+        }
         // Only update if not already set
         if (!existing.totalIssued) {
           await Stock.updateOne({ symbol: stockData.symbol }, { $set: updates });

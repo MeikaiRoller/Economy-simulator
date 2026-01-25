@@ -103,9 +103,22 @@ async function handleBuy(interaction) {
   if (quantityInput.toLowerCase() === "max") {
     const availableShares = stock.totalIssued - stock.volume;
     const affordableShares = Math.floor(userProfile.balance / stock.price);
-    quantity = Math.min(availableShares, affordableShares);
+    
+    // Get current ownership for cap calculation
+    const tempPortfolio = await StockPortfolio.findOne({ userId });
+    const tempHolding = tempPortfolio?.holdings.find((h) => h.symbol === symbol);
+    const currentOwnership = tempHolding ? tempHolding.quantity : 0;
+    const maxOwnership = Math.floor(stock.totalIssued * 0.10); // 10% cap
+    const ownershipRoom = maxOwnership - currentOwnership;
+    
+    quantity = Math.min(availableShares, affordableShares, ownershipRoom);
     
     if (quantity <= 0) {
+      if (ownershipRoom <= 0) {
+        return interaction.editReply(
+          `❌ You've hit the 10% ownership cap for **${symbol}**! You own **${currentOwnership.toLocaleString()}** shares.`
+        );
+      }
       return interaction.editReply(
         `❌ Cannot buy any shares! You have **$${userProfile.balance.toLocaleString()}** but shares cost **$${stock.price.toFixed(2)}** each.`
       );
@@ -133,6 +146,31 @@ async function handleBuy(interaction) {
     );
   }
 
+  // Check ownership cap (10% of total issued shares per player)
+  const MAX_OWNERSHIP_PERCENT = 0.10; // 10%
+  const maxOwnership = Math.floor(stock.totalIssued * MAX_OWNERSHIP_PERCENT);
+  
+  let portfolio = await StockPortfolio.findOne({ userId });
+  if (!portfolio) {
+    portfolio = new StockPortfolio({ userId, holdings: [] });
+  }
+
+  const existingHolding = portfolio.holdings.find((h) => h.symbol === symbol);
+  const currentOwnership = existingHolding ? existingHolding.quantity : 0;
+  const newTotalOwnership = currentOwnership + quantity;
+
+  if (newTotalOwnership > maxOwnership) {
+    const canStillBuy = maxOwnership - currentOwnership;
+    const ownershipPercent = ((currentOwnership / stock.totalIssued) * 100).toFixed(2);
+    
+    return interaction.editReply(
+      `❌ Ownership limit reached!\n` +
+      `You own: **${currentOwnership.toLocaleString()}** shares (${ownershipPercent}%)\n` +
+      `Maximum: **${maxOwnership.toLocaleString()}** shares (${MAX_OWNERSHIP_PERCENT * 100}%)\n` +
+      `You can buy: **${canStillBuy.toLocaleString()}** more shares`
+    );
+  }
+
   // Deduct balance
   userProfile.balance -= totalCost;
   await userProfile.save();
@@ -141,14 +179,6 @@ async function handleBuy(interaction) {
   stock.volume += quantity;
   stock.totalVolumeTraded = (stock.totalVolumeTraded || 0) + quantity;
   await stock.save();
-
-  // Update portfolio
-  let portfolio = await StockPortfolio.findOne({ userId });
-  if (!portfolio) {
-    portfolio = new StockPortfolio({ userId, holdings: [] });
-  }
-
-  const existingHolding = portfolio.holdings.find((h) => h.symbol === symbol);
   if (existingHolding) {
     // Update average price
     const totalShares = existingHolding.quantity + quantity;

@@ -67,25 +67,33 @@ async function simulateMarket(client) {
   for (const stock of stocks) {
     if (!stock.totalIssued || stock.totalIssued <= 0) continue;
 
+    // Set fundamental price if not set (first time)
+    if (!stock.fundamentalPrice) {
+      stock.fundamentalPrice = stock.price;
+    }
+
     const oldPrice = stock.price;
     let drift;
-    const roll = Math.random();
     let volatilityMultiplier;
 
     // Volatility affects price movement range
     if (stock.volatility === "high") {
-      volatilityMultiplier = 0.08; // 8% range
+      volatilityMultiplier = 0.04; // Reduced from 8% to 4%
     } else if (stock.volatility === "low") {
-      volatilityMultiplier = 0.015; // 1.5% range
+      volatilityMultiplier = 0.01; // Reduced from 1.5% to 1%
     } else {
-      volatilityMultiplier = 0.03; // 3% range
+      volatilityMultiplier = 0.02; // Reduced from 3% to 2%
     }
+
+    // Mean reversion: pull price back toward fundamental value
+    const priceDeviation = (stock.price - stock.fundamentalPrice) / stock.fundamentalPrice;
+    const meanReversionForce = -priceDeviation * 0.05; // 5% pull toward fundamental
 
     // Random walk with sentiment drift
     const randomComponent = (Math.random() - 0.5) * 2 * volatilityMultiplier;
     const sentimentComponent = meta.driftMultiplier - 1;
-    const momentumComponent = stock.momentum * 0.02; // Momentum adds up to 2% boost/penalty
-    drift = 1 + randomComponent + sentimentComponent * 0.5 + momentumComponent;
+    const momentumComponent = stock.momentum * 0.005; // Reduced from 2% to 0.5%
+    drift = 1 + randomComponent + sentimentComponent * 0.3 + momentumComponent + meanReversionForce;
 
     // Apply sector event if applicable
     if (meta.sectorEvent && stock.sector === meta.sectorEvent.sector) {
@@ -93,19 +101,25 @@ async function simulateMarket(client) {
     }
 
     // Clamp drift to reasonable bounds
-    drift = Math.min(Math.max(drift, 0.85), 1.15);
+    drift = Math.min(Math.max(drift, 0.92), 1.08);
 
     let newPrice = stock.price * drift;
+    
+    // Enforce minimum price as % of fundamental (prevents death spirals)
+    const minPrice = stock.fundamentalPrice * 0.25; // Can't drop below 25% of fundamental
+    const maxPrice = stock.fundamentalPrice * 4.0; // Can't rise above 400% of fundamental
+    newPrice = Math.max(minPrice, Math.min(maxPrice, newPrice));
+    
     stock.price = parseFloat(Math.max(0.01, newPrice).toFixed(2));
 
     // Update momentum: trending up if price increased, down if decreased
     const priceChange = stock.price - oldPrice;
     if (priceChange > 0) {
-      stock.momentum = Math.min(stock.momentum + 0.2, 1); // Max momentum 1
+      stock.momentum = Math.min(stock.momentum + 0.1, 1); // Reduced from 0.2 to 0.1
     } else if (priceChange < 0) {
-      stock.momentum = Math.max(stock.momentum - 0.2, -1); // Min momentum -1
+      stock.momentum = Math.max(stock.momentum - 0.1, -1); // Reduced from 0.2 to 0.1
     } else {
-      stock.momentum *= 0.8; // Decay momentum if no movement
+      stock.momentum *= 0.9; // Slower decay
     }
 
     stock.lastUpdated = new Date();
