@@ -18,8 +18,8 @@ async function payDividends() {
     for (const stock of stocks) {
       if (!stock.volume || stock.volume <= 0) continue;
 
-      // Dividend rate: 1.5% of current price per share per month
-      const dividendPerShare = stock.price * 0.015;
+      // Dividend rate: 0.05% of current price per share per day (18% annual)
+      const dividendPerShare = stock.price * 0.0005;
 
       // Find all portfolios holding this stock
       const portfolios = await StockPortfolio.find({

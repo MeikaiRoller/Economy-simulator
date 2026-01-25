@@ -36,10 +36,12 @@ const client = new Client({
       }
     );
 
-    // 💰 Schedule dividend payouts monthly (1st of month at midnight)
-    cron.schedule("0 0 1 * *", () => {
-      console.log("💰 Processing monthly dividend payouts...");
+    // 💰 Schedule dividend payouts daily at midnight
+    cron.schedule("0 0 * * *", () => {
+      console.log("💰 Processing daily dividend payouts...");
       payDividends().catch(console.error);
+    }, {
+      timezone: "America/Toronto"
     });
   });
 

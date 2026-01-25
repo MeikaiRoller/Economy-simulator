@@ -44,11 +44,11 @@ module.exports = {
       try {
         // Get stock portfolio value
         const portfolio = await StockPortfolio.findOne({ userId: targetUser.id });
-        if (portfolio?.stocks?.length) {
-          for (const holding of portfolio.stocks) {
-            const stock = await Stock.findOne({ stockId: holding.stockId });
+        if (portfolio?.holdings?.length) {
+          for (const holding of portfolio.holdings) {
+            const stock = await Stock.findOne({ symbol: holding.symbol });
             if (stock) {
-              stockValue += (holding.shares || 0) * (stock.currentPrice || 0);
+              stockValue += (holding.quantity || 0) * (stock.price || 0);
             }
           }
         }
