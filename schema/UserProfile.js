@@ -11,6 +11,15 @@ const UserProfileSchema = new mongoose.Schema({
   gamesWon: { type: Number, default: 0 },
   gamesLost: { type: Number, default: 0 },
 
+  // ---PVP STATS---
+  pvpStats: {
+    wins: { type: Number, default: 0 },
+    losses: { type: Number, default: 0 },
+    totalWagered: { type: Number, default: 0 },
+    totalWon: { type: Number, default: 0 },
+    totalLost: { type: Number, default: 0 },
+  },
+
   // ---RPG STATS---
   hp: { type: Number, default: 100 }, // Current HP
   mana: { type: Number, default: 50 }, // Current Mana

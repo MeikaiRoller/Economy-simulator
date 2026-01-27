@@ -18,7 +18,45 @@ const ItemSchema = new mongoose.Schema({
     type: String,
     enum: ["weapon", "head", "chest", "hands", "feet", "accessory"],
   },
+  
+  // Set System
+  setName: {
+    type: String,
+    enum: [
+      "Ethans Prowess",
+      "Olivias Fury",
+      "Justins Clapping",
+      "Lilahs Cold Heart",
+      "Hasagi",
+      "Maries Zhongli Bodypillow",
+      "Andys Soraka",
+      null
+    ],
+    default: null
+  },
+  
+  // Element (only if part of elemental set)
+  element: {
+    type: String,
+    enum: ["pyro", "electro", "cryo", "anemo", "geo", "hydro", null],
+    default: null
+  },
+  
+  // Main Stat
+  mainStat: {
+    type: { type: String, enum: ["attack", "defense", "hp", "critRate", "critDMG", "energy"] },
+    value: { type: Number, default: 0 }
+  },
+  
+  // Sub Stats (random rolls)
+  subStats: [{
+    type: { type: String, enum: ["attack", "attack%", "defense", "defense%", "hp", "hp%", "critRate", "critDMG", "energy", "luck"] },
+    value: { type: Number }
+  }],
+  
+  // Legacy support for old items
   price: { type: Number, default: 0 },
+  shopPrice: { type: Number, default: 0 },
   emoji: { type: String },
   buffs: {
     attack: { type: Number, default: 0 },

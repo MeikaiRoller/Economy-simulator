@@ -79,6 +79,14 @@ module.exports = {
       const won = userProfile.gamesWon || 0;
       const lost = userProfile.gamesLost || 0;
       const winRate = played > 0 ? ((won / played) * 100).toFixed(1) : 0;
+      
+      // PVP Stats
+      const pvpWins = userProfile.pvpStats?.wins || 0;
+      const pvpLosses = userProfile.pvpStats?.losses || 0;
+      const pvpTotal = pvpWins + pvpLosses;
+      const pvpWinRate = pvpTotal > 0 ? ((pvpWins / pvpTotal) * 100).toFixed(1) : 0;
+      const pvpNetProfit = (userProfile.pvpStats?.totalWon || 0) - (userProfile.pvpStats?.totalLost || 0);
+      const pvpNetStr = pvpNetProfit >= 0 ? `+$${pvpNetProfit.toLocaleString()}` : `-$${Math.abs(pvpNetProfit).toLocaleString()}`;
 
       // Get equipped items
       let equipmentList = "❌ None";
@@ -120,6 +128,9 @@ module.exports = {
           
           // Gaming Section
           { name: "🎲 GAMING RECORD", value: `Played: **${played}**\nWins: **${won}** | Losses: **${lost}**\nWin Rate: **${winRate}%**`, inline: false },
+          
+          // PVP Section
+          { name: "⚔️ PVP RECORD", value: `Duels: **${pvpTotal}**\nWins: **${pvpWins}** | Losses: **${pvpLosses}**\nWin Rate: **${pvpWinRate}%**\nNet Profit: **${pvpNetStr}**`, inline: false },
           
           // Equipment Section
           { name: "🛡️ EQUIPMENT", value: equipmentList, inline: false },

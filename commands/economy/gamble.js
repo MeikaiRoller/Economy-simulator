@@ -60,22 +60,6 @@ module.exports = {
         return;
       }
 
-      // ✅ Check cooldown (7 min between gambles)
-      const existingCooldown = await Cooldown.findOne({
-        commandName: "casino",
-        userId: interaction.user.id,
-        endsAt: { $gt: new Date() },
-      });
-      if (existingCooldown) {
-        const secondsLeft = Math.ceil(
-          (existingCooldown.endsAt - new Date()) / 1000
-        );
-        await interaction.editReply(
-          `⏳ You're gambling too fast! Try again in ${secondsLeft}s.`
-        );
-        return;
-      }
-
       // ✅ Max bet validation ($50,000 cap)
       const MAX_BET = 50_000;
       if (amount > MAX_BET) {
@@ -84,16 +68,6 @@ module.exports = {
         );
         return;
       }
-
-      // ✅ Set cooldown (7 minutes)
-      const cooldownEnd = new Date(Date.now() + 7 * 60 * 1000);
-      await Cooldown.findOneAndUpdate(
-        { commandName: "casino", userId: interaction.user.id },
-        {
-          endsAt: cooldownEnd,
-        },
-        { upsert: true }
-      );
 
       if (userProfile.balance < amount) {
         await interaction.editReply(

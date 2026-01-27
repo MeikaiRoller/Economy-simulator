@@ -43,7 +43,7 @@ async function handleList(interaction) {
   const embed = new EmbedBuilder()
     .setTitle("🏪 Item Shop")
     .setDescription(
-      `**Available Items** | Refreshes <t:${Math.floor(expiresAt.getTime() / 1000)}:R>\n\nUse \`/shop buy <number>\` to purchase`
+      `**Available Items** | Refreshes <t:${Math.floor(expiresAt.getTime() / 1000)}:R>\n\nUse \`/shop buy <number>\` to purchase\n💡 *Items can also be found during adventures!*`
     )
     .setColor(0x00ff41);
 
