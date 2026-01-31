@@ -3,6 +3,13 @@ const Shop = require("../../schema/Shop");
 const UserProfile = require("../../schema/UserProfile");
 const Item = require("../../schema/Item");
 
+// ====================================================================
+// SHOP FEATURE TOGGLE
+// ====================================================================
+// Set to false to disable shop (players must grind for items)
+// Set to true to re-enable shop in future updates
+const SHOP_ENABLED = false;
+
 const SHOP_SIZE = 8; // items to show
 const REFRESH_HOURS = 24; // daily refresh
 
@@ -204,6 +211,28 @@ module.exports = {
     if (!interaction.inGuild()) {
       await interaction.reply({
         content: "You can only use this command inside a server!",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    // Check if shop is enabled
+    if (!SHOP_ENABLED) {
+      await interaction.reply({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("🏪 Shop Temporarily Closed")
+            .setDescription(
+              "The shop is currently closed for renovations! 🔨\n\n" +
+              "**How to Get Items:**\n" +
+              "• 🗡️ Go on adventures with `/adventure`\n" +
+              "• 💰 Defeat enemies and find treasure\n" +
+              "• 🎲 Better luck = better loot!\n\n" +
+              "The shop will return in a future update with new features!"
+            )
+            .setColor(0xffa500)
+            .setFooter({ text: "Keep grinding! Your adventure awaits." })
+        ],
         ephemeral: true,
       });
       return;

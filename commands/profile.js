@@ -165,10 +165,8 @@ module.exports = {
         
         // Active Set Bonuses
         if (buffs.setInfo.activeSetBonuses && buffs.setInfo.activeSetBonuses.length > 0) {
-          const setList = buffs.setInfo.activeSetBonuses
-            .map(bonus => `${bonus.emoji || ''} **${bonus.setName}** (${bonus.pieces}pc)`)
-            .join('\n');
-          setFields.push({ name: "✨ ACTIVE SETS", value: setList, inline: false });
+          const setList = buffs.setInfo.activeSetBonuses.join('\n📦 ');
+          setFields.push({ name: "📦 ACTIVE SETS", value: `📦 ${setList}`, inline: false });
         }
         
         // Active Elements (only show if 3+ pieces unlocked)
@@ -187,11 +185,31 @@ module.exports = {
           setFields.push({ name: "🌈 ELEMENTS", value: elementList, inline: false });
         }
         
+        // Dual Mastery (3+3 builds)
+        if (buffs.setInfo.dualMastery) {
+          const mastery = buffs.setInfo.dualMastery;
+          setFields.push({ 
+            name: `🔥⚡ ${mastery.name}`, 
+            value: `*Mixed element synergy activated!*`, 
+            inline: false 
+          });
+        }
+        
+        // Adaptive Resonance (3+3 builds)
+        if (buffs.setInfo.adaptiveBonus && buffs.setInfo.adaptiveBonus.triggers.length > 0) {
+          const triggers = buffs.setInfo.adaptiveBonus.triggers.join(', ');
+          setFields.push({ 
+            name: `⚡ ADAPTIVE BONUSES`, 
+            value: triggers, 
+            inline: false 
+          });
+        }
+        
         // Elemental Resonance (only if 6-piece full set)
         if (buffs.setInfo.elementalResonance) {
           const resonance = buffs.setInfo.elementalResonance;
           setFields.push({ 
-            name: `🌟 ${resonance.name}`, 
+            name: `✨ ${resonance.name}`, 
             value: `*Full set elemental synergy activated!*`, 
             inline: false 
           });
@@ -201,7 +219,7 @@ module.exports = {
         if (buffs.setInfo.elementalReaction) {
           const reaction = buffs.setInfo.elementalReaction;
           setFields.push({ 
-            name: `⚡ ${reaction.name}`, 
+            name: `💥 ${reaction.name}`, 
             value: reaction.effect, 
             inline: false 
           });

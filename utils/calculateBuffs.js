@@ -40,7 +40,9 @@ async function calculateActiveBuffs(userProfile) {
     activeSetBonuses: setBonusData.activeSetBonuses,
     activeElements: setBonusData.activeElements,
     elementalResonance: setBonusData.elementalResonance,
-    elementalReaction: setBonusData.elementalReaction
+    elementalReaction: setBonusData.elementalReaction,
+    dualMastery: setBonusData.dualMastery,
+    adaptiveBonus: setBonusData.adaptiveBonus
   };
 
   // 4. Add buffs from individual items (main stat + sub-stats + legacy buffs)
