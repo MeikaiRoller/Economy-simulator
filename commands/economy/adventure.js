@@ -1,5 +1,6 @@
 // Deprecated - use /rpg adventure instead
 module.exports = {
-  data: { name: "adventure_deprecated", description: "Deprecated", hidden: true },
+  data: { name: "adventure", description: "Deprecated", dm_permission: false },
+  deleted: true,
   run: async () => {},
 };

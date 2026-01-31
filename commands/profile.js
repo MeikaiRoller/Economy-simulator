@@ -107,12 +107,27 @@ module.exports = {
         console.error("Buff calculation error:", e);
       }
 
-      const formatBuff = (val) => {
-        const num = Number(val) || 0;
-        const percent = Math.round(num * 100);
-        if (percent === 0) return "➖ 0%";
-        if (percent > 0) return `📈 +${percent}%`;
-        return `📉 ${percent}%`;
+      // Calculate actual stat values based on level and buffs
+      const baseAttack = 25 + (level * 2); // +2 per level
+      const baseDefense = 12 + level; // +1 per level
+      const baseHP = 100;
+
+      const finalAttack = Math.round(baseAttack * (1 + buffs.attack) + (buffs.attackFlat || 0));
+      const finalDefense = Math.round(baseDefense * (1 + buffs.defense) + (buffs.defenseFlat || 0));
+      const finalHP = Math.round(baseHP * (1 + (buffs.hpPercent || 0)) + (buffs.hpFlat || 0));
+      const finalCritRate = Math.round(5 + (buffs.critChance || 0)); // Base 5% crit
+      const finalCritDMG = Math.round(50 + (buffs.critDMG || 0)); // Base 50% crit damage
+
+      const formatStat = (val) => {
+        const num = Math.round(val) || 0;
+        if (num === 0) return "0";
+        return `${num}`;
+      };
+
+      const formatPercent = (val) => {
+        const num = Math.round(val) || 0;
+        if (num === 0) return "0%";
+        return `${num}%`;
       };
 
       const embed = new EmbedBuilder()
@@ -124,7 +139,7 @@ module.exports = {
           { name: "💰 WEALTH", value: `Wallet: ${balance}\nBank: ${bank}\n**Net Worth: ${netWorth}**\n\`${breakdown}\``, inline: false },
           
           // Stats Section
-          { name: "🎮 CHARACTER STATS", value: `**Level:** ${level}\n**Experience:** ${currentXP}/${xpNeeded}\n${xpBar}\n**HP:** ${hp}/100`, inline: false },
+          { name: "🎮 CHARACTER STATS", value: `**Level:** ${level}\n**Experience:** ${currentXP}/${xpNeeded}\n${xpBar}\n**HP:** ${finalHP}`, inline: false },
           
           // Gaming Section
           { name: "🎲 GAMING RECORD", value: `Played: **${played}**\nWins: **${won}** | Losses: **${lost}**\nWin Rate: **${winRate}%**`, inline: false },
@@ -135,15 +150,67 @@ module.exports = {
           // Equipment Section
           { name: "🛡️ EQUIPMENT", value: equipmentList, inline: false },
           
-          // Buffs Section - Organized by type
-          { name: "⚔️ OFFENSIVE", value: `Attack: ${formatBuff(buffs.attack)}\nCrit: ${formatBuff(buffs.critChance)}\nMagic: ${formatBuff(buffs.magic)}`, inline: true },
-          { name: "🛡️ DEFENSIVE", value: `Defense: ${formatBuff(buffs.defense)}\nMag Def: ${formatBuff(buffs.magicDefense)}\nHealing: ${formatBuff(buffs.healingBoost)}`, inline: true },
-          { name: "🌟 UTILITY", value: `XP Boost: ${formatBuff(buffs.xpBoost)}\nLoot: ${formatBuff(buffs.lootBoost)}\nLuck: ${formatBuff(buffs.luck)}`, inline: true },
-          { name: "🔍 DISCOVERY", value: `Find Rate: ${formatBuff(buffs.findRateBoost)}\nCooldown Reduction: ${formatBuff(buffs.cooldownReduction)}`, inline: false }
+          // Buffs Section - Show actual calculated values
+          { name: "⚔️ OFFENSIVE", value: `Attack: ${formatStat(finalAttack)}\nCrit Rate: ${formatPercent(finalCritRate)}\nCrit DMG: ${formatPercent(finalCritDMG)}`, inline: true },
+          { name: "🛡️ DEFENSIVE", value: `Defense: ${formatStat(finalDefense)}`, inline: true },
+          { name: "🌟 UTILITY", value: `XP Boost: ${formatPercent(buffs.xpBoost * 100)}\nLuck: ${formatPercent(buffs.luck * 100)}\nCDR: ${formatPercent(buffs.cooldownReduction)}`, inline: true }
         )
         .setColor(0x00ff41)
         .setFooter({ text: `Profile created • Use /inv to manage items`, iconURL: targetUser.displayAvatarURL() })
         .setTimestamp();
+
+      // Add set bonuses and elemental info if available
+      if (buffs.setInfo) {
+        const setFields = [];
+        
+        // Active Set Bonuses
+        if (buffs.setInfo.activeSetBonuses && buffs.setInfo.activeSetBonuses.length > 0) {
+          const setList = buffs.setInfo.activeSetBonuses
+            .map(bonus => `${bonus.emoji || ''} **${bonus.setName}** (${bonus.pieces}pc)`)
+            .join('\n');
+          setFields.push({ name: "✨ ACTIVE SETS", value: setList, inline: false });
+        }
+        
+        // Active Elements (only show if 3+ pieces unlocked)
+        if (buffs.setInfo.activeElements && buffs.setInfo.activeElements.length > 0) {
+          const elementEmojis = {
+            pyro: "🔥",
+            electro: "⚡",
+            cryo: "❄️",
+            anemo: "💨",
+            geo: "🪨",
+            hydro: "💧"
+          };
+          const elementList = buffs.setInfo.activeElements
+            .map(elem => `${elementEmojis[elem] || ''} ${elem.charAt(0).toUpperCase() + elem.slice(1)}`)
+            .join(' • ');
+          setFields.push({ name: "🌈 ELEMENTS", value: elementList, inline: false });
+        }
+        
+        // Elemental Resonance (only if 6-piece full set)
+        if (buffs.setInfo.elementalResonance) {
+          const resonance = buffs.setInfo.elementalResonance;
+          setFields.push({ 
+            name: `🌟 ${resonance.name}`, 
+            value: `*Full set elemental synergy activated!*`, 
+            inline: false 
+          });
+        }
+        
+        // Elemental Reaction (3+3 different elements)
+        if (buffs.setInfo.elementalReaction) {
+          const reaction = buffs.setInfo.elementalReaction;
+          setFields.push({ 
+            name: `⚡ ${reaction.name}`, 
+            value: reaction.effect, 
+            inline: false 
+          });
+        }
+        
+        if (setFields.length > 0) {
+          embed.addFields(setFields);
+        }
+      }
 
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {

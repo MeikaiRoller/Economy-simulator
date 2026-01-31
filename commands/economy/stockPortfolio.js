@@ -8,6 +8,8 @@ module.exports = {
     description: "View your stock portfolio and current value",
   },
 
+  deleted: true,
+
   run: async ({ interaction }) => {
     await interaction.deferReply({ ephemeral: true });
 

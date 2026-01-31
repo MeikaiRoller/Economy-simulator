@@ -1,5 +1,6 @@
 // Deprecated - use /inv instead
 module.exports = {
-  data: { name: "inventory_deprecated", description: "Deprecated", hidden: true },
+  data: { name: "inventory_deprecated", description: "Deprecated", dm_permission: false },
+  deleted: true,
   run: async () => {},
 };

@@ -7,6 +7,8 @@ module.exports = {
     description: "View all available stocks and their current prices",
   },
 
+  deleted: true,
+
   run: async ({ interaction }) => {
     await interaction.deferReply();
 

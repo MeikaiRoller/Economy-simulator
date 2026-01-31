@@ -19,8 +19,64 @@ const client = new Client({
 });
 
   // 💸 Schedule horse race resolver at 12PM Toronto time once client is ready
-  client.once("ready", () => {
+  client.once("ready", async () => {
     console.log(`🟢 Logged in as ${client.user.tag}`);
+
+    // 🧹 Remove deprecated slash commands
+    const commandsToRemove = [
+      "adventure",
+      "adventure_deprecated",
+      "nether_deprecated",
+      "beg_deprecated",
+      "buy_deprecated",
+      "horse_deprecated",
+      "inventory_deprecated",
+      "stockbuy",
+      "stocksell",
+      "stockview",
+      "stockportfolio",
+      "stockbuy_deprecated",
+      "stocksell_deprecated",
+    ];
+    try {
+      if (!client.application) {
+        console.warn("Client application is not available yet.");
+      } else {
+        await client.application.fetch();
+        const globalCommands = await client.application.commands.fetch();
+        for (const cmd of globalCommands.values()) {
+          if (commandsToRemove.includes(cmd.name)) {
+            try {
+              await client.application.commands.delete(cmd.id);
+              console.log(`🗑️ Removed global command: ${cmd.name}`);
+            } catch (err) {
+              if (err?.code !== 10063) {
+                throw err;
+              }
+            }
+          }
+        }
+
+        const guilds = await client.guilds.fetch();
+        for (const guild of guilds.values()) {
+          const guildCommands = await guild.commands.fetch();
+          for (const cmd of guildCommands.values()) {
+            if (commandsToRemove.includes(cmd.name)) {
+              try {
+                await guild.commands.delete(cmd.id);
+                console.log(`🗑️ Removed guild command: ${cmd.name} (${guild.id})`);
+              } catch (err) {
+                if (err?.code !== 10063) {
+                  throw err;
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Failed to remove deprecated commands:", error);
+    }
 
     // 🐎 Schedule hourly horse race resolver and lineup announcement
     cron.schedule(

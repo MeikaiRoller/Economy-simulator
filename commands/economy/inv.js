@@ -57,6 +57,17 @@ module.exports = {
             .setDescription("Item ID to sell")
             .setRequired(true)
         )
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("inspect")
+        .setDescription("Inspect an item in your inventory")
+        .addStringOption((opt) =>
+          opt
+            .setName("item")
+            .setDescription("Item ID to inspect")
+            .setRequired(true)
+        )
     ),
 
   run: async ({ interaction }) => {
@@ -80,6 +91,9 @@ module.exports = {
     }
     if (subcommand === "sell") {
       return handleSell(interaction);
+    }
+    if (subcommand === "inspect") {
+      return handleInspect(interaction);
     }
   },
 };
@@ -113,7 +127,7 @@ async function handleView(interaction) {
     const item = allItems.find((i) => i.itemId === invItem.itemId);
     if (item) {
       const rarity = item.rarity || "Common";
-      inventoryText += `${item.emoji} **${item.name}** (${rarity}) x${invItem.quantity}\n`;
+      inventoryText += `${item.emoji} **${item.name}** (${rarity}) x${invItem.quantity} — ${item.itemId}\n`;
     }
   });
 
@@ -163,23 +177,8 @@ async function handleEquip(interaction) {
     return interaction.editReply("❌ That item has no slot assigned!");
   }
 
-  // If something is already equipped in that slot, unequip it first
-  if (user.equipped[slot]) {
-    const oldItemId = user.equipped[slot];
-    const oldItem = user.inventory.find((i) => i.itemId === oldItemId);
-    if (oldItem) {
-      oldItem.quantity += 1;
-    } else {
-      user.inventory.push({ itemId: oldItemId, quantity: 1 });
-    }
-  }
-
-  // Equip the new item
+  // Equip the new item (old item in slot is simply replaced)
   user.equipped[slot] = itemId;
-  invItem.quantity -= 1;
-  if (invItem.quantity <= 0) {
-    user.inventory = user.inventory.filter((i) => i.quantity > 0);
-  }
 
   await user.save();
 
@@ -206,13 +205,6 @@ async function handleUnequip(interaction) {
 
   const item = await Item.findOne({ itemId });
   user.equipped[slot] = null;
-
-  const invItem = user.inventory.find((i) => i.itemId === itemId);
-  if (invItem) {
-    invItem.quantity += 1;
-  } else {
-    user.inventory.push({ itemId, quantity: 1 });
-  }
 
   await user.save();
 
@@ -261,4 +253,158 @@ async function handleSell(interaction) {
   return interaction.editReply(
     `✅ Sold **${item.name}** for **$${sellPrice.toLocaleString()}**!`
   );
+}
+
+function formatBuffValue(key, value) {
+  const percentScalarKeys = new Set([
+    "attack",
+    "defense",
+    "magic",
+    "magicDefense",
+    "healingBoost",
+    "xpBoost",
+    "findRateBoost",
+    "luck",
+  ]);
+  const percentFlatKeys = new Set(["critChance", "cooldownReduction"]);
+
+  if (percentScalarKeys.has(key) && typeof value === "number") {
+    return `${Math.round(value * 100)}%`;
+  }
+  if (percentFlatKeys.has(key) && typeof value === "number") {
+    return `${value}%`;
+  }
+  return String(value);
+}
+
+function formatBuffLabel(key) {
+  const labels = {
+    attack: "Attack",
+    defense: "Defense",
+    magic: "Magic",
+    magicDefense: "Magic Defense",
+    critChance: "Crit Chance",
+    healingBoost: "Healing",
+    xpBoost: "XP Boost",
+    cooldownReduction: "Cooldown Reduction",
+    findRateBoost: "Find Rate",
+    luck: "Luck",
+  };
+  return labels[key] || key;
+}
+
+async function handleInspect(interaction) {
+  await interaction.deferReply({ ephemeral: true });
+
+  const userId = interaction.user.id;
+  const itemId = interaction.options.getString("item").toLowerCase();
+  const user = await UserProfile.findOne({ userId });
+
+  if (!user) {
+    return interaction.editReply("❌ You need a profile first!");
+  }
+
+  // Check if item is in inventory or equipped
+  const invItem = user.inventory.find((i) => i.itemId === itemId);
+  const isEquipped = Object.values(user.equipped).includes(itemId);
+  
+  if (!invItem && !isEquipped) {
+    return interaction.editReply("❌ You don't have that item!");
+  }
+
+  const item = await Item.findOne({ itemId });
+  if (!item) {
+    return interaction.editReply("❌ Item not found!");
+  }
+
+  // Determine quantity and status
+  let quantityText = "0";
+  let statusText = "";
+  
+  if (isEquipped) {
+    const equippedSlot = Object.keys(user.equipped).find(slot => user.equipped[slot] === itemId);
+    statusText = `✅ Equipped (${equippedSlot})`;
+    quantityText = invItem ? String(invItem.quantity) : "0 (equipped)";
+  } else if (invItem) {
+    quantityText = String(invItem.quantity);
+    statusText = "📦 In Inventory";
+  }
+
+  const fields = [
+    { name: "ID", value: item.itemId, inline: true },
+    { name: "Rarity", value: item.rarity || "Common", inline: true },
+    { name: "Type", value: item.type || "equippable", inline: true },
+    { name: "Slot", value: item.slot || "N/A", inline: true },
+    { name: "Price", value: item.price ? `$${item.price.toLocaleString()}` : "N/A", inline: true },
+    { name: "Quantity", value: quantityText, inline: true },
+  ];
+
+  if (statusText) {
+    fields.push({ name: "Status", value: statusText, inline: false });
+  }
+
+  // Build stats display
+  let statsText = "";
+  
+  // Show main stat if available
+  if (item.mainStat && item.mainStat.type) {
+    const statLabels = {
+      attack: "Attack",
+      defense: "Defense",
+      hp: "HP",
+      critRate: "Crit Rate",
+      critDMG: "Crit DMG",
+      energy: "Energy Recharge"
+    };
+    const label = statLabels[item.mainStat.type] || item.mainStat.type;
+    const value = item.mainStat.value;
+    const suffix = ["critRate", "critDMG"].includes(item.mainStat.type) ? "%" : "";
+    statsText += `**Main Stat:** ${label} +${value}${suffix}\n\n`;
+  }
+  
+  // Show sub stats if available
+  if (item.subStats && item.subStats.length > 0) {
+    statsText += "**Sub Stats:**\n";
+    item.subStats.forEach(subStat => {
+      const statLabels = {
+        "attack": "Attack",
+        "attack%": "Attack%",
+        "defense": "Defense",
+        "defense%": "Defense%",
+        "hp": "HP",
+        "hp%": "HP%",
+        "critRate": "Crit Rate%",
+        "critDMG": "Crit DMG%",
+        "energy": "Energy Recharge%",
+        "luck": "Luck"
+      };
+      const label = statLabels[subStat.type] || subStat.type;
+      const value = subStat.type === "luck" ? `${(subStat.value * 100).toFixed(1)}%` : subStat.value;
+      statsText += `• ${label}: +${value}\n`;
+    });
+  }
+  
+  // Fallback to legacy buffs if no main/sub stats
+  if (!statsText) {
+    const buffs = item.buffs || {};
+    const buffEntries = Object.entries(buffs).filter(([key, value]) => value && value !== 0);
+    if (buffEntries.length > 0) {
+      statsText = buffEntries
+        .map(([key, value]) => `• ${formatBuffLabel(key)}: ${formatBuffValue(key, value)}`)
+        .join("\n");
+    } else {
+      statsText = "None";
+    }
+  }
+
+  fields.push({ name: "Stats", value: statsText || "None", inline: false });
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${item.emoji || "📦"} ${item.name}`)
+    .setDescription(item.description || "No description.")
+    .addFields(fields)
+    .setColor(RARITY_COLORS[item.rarity] || 0x3498db)
+    .setTimestamp();
+
+  return interaction.editReply({ embeds: [embed] });
 }

@@ -386,23 +386,35 @@ async function rollItemDrop(stage, isBoss) {
   // Generate the item
   const itemData = generateItem(slot, rarity, setName);
   
-  // Save to database
-  const newItem = new Item({
-    itemId: itemData.itemId,
-    name: itemData.name,
-    description: itemData.description,
-    emoji: itemData.emoji,
-    slot: itemData.slot,
-    setName: itemData.setName,
-    element: itemData.element,
-    mainStat: itemData.mainStat,
-    subStats: itemData.subStats,
-    rarity: itemData.rarity,
-    price: itemData.price,
-    shopPrice: itemData.shopPrice
-  });
+  // Check if item already exists in database
+  let existingItem = await Item.findOne({ itemId: itemData.itemId });
   
-  await newItem.save();
+  // Only save if it doesn't exist yet
+  if (!existingItem) {
+    const newItem = new Item({
+      itemId: itemData.itemId,
+      name: itemData.name,
+      description: itemData.description,
+      emoji: itemData.emoji,
+      slot: itemData.slot,
+      setName: itemData.setName,
+      element: itemData.element,
+      mainStat: itemData.mainStat,
+      subStats: itemData.subStats,
+      rarity: itemData.rarity,
+      price: itemData.price,
+      shopPrice: itemData.shopPrice
+    });
+    
+    try {
+      await newItem.save();
+    } catch (error) {
+      // Ignore duplicate key errors
+      if (error.code !== 11000) {
+        console.error('Error saving item:', error);
+      }
+    }
+  }
   
   return {
     itemId: itemData.itemId,
