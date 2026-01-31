@@ -64,7 +64,12 @@ module.exports = {
 };
 
 async function handleAdventure(interaction) {
-  await interaction.deferReply();
+  try {
+    await interaction.deferReply();
+  } catch (error) {
+    console.error('Failed to defer reply:', error.message);
+    return; // Interaction expired, can't respond
+  }
 
   const userId = interaction.user.id;
   let userProfile = await UserProfile.findOne({ userId });

@@ -54,10 +54,20 @@ class TestPlayer {
     
     // Add buffs from individual items
     for (const item of this.equipment) {
-      // Main stat
+      // Calculate level bonus multiplier
+      const itemLevel = item.level || 0;
+      let levelBonusPercent = 0;
+      for (let i = 1; i <= itemLevel; i++) {
+        if (i <= 5) levelBonusPercent += 2;
+        else if (i <= 10) levelBonusPercent += 3;
+        else levelBonusPercent += 4;
+      }
+      const levelMultiplier = 1 + (levelBonusPercent / 100);
+      
+      // Main stat (with level bonus)
       if (item.mainStat?.type && item.mainStat?.value) {
         const statType = item.mainStat.type;
-        const value = item.mainStat.value;
+        const value = item.mainStat.value * levelMultiplier;
         
         if (statType === 'attack') buffs.attackFlat += value;
         else if (statType === 'defense') buffs.defenseFlat += value;
@@ -67,11 +77,11 @@ class TestPlayer {
         else if (statType === 'energy') buffs.energy += value;
       }
       
-      // Sub-stats
+      // Sub-stats (with level bonus)
       if (item.subStats?.length) {
         for (const subStat of item.subStats) {
           const statType = subStat.type;
-          const value = subStat.value;
+          const value = subStat.value * levelMultiplier;
           
           if (statType === 'attack') buffs.attackFlat += value;
           else if (statType === 'attack%') buffs.attack += value / 100;
@@ -676,6 +686,93 @@ for (let i = 0; i < 50; i++) {
 
 console.log(`Epic Quality (Good Substats): ${goodRNGWins} wins (${(goodRNGWins * 2).toFixed(1)}%)`);
 console.log(`Common Quality (Bad Substats): ${badRNGWins} wins (${(badRNGWins * 2).toFixed(1)}%)`);
+
+// Equipment Level Impact Test
+console.log("\n📊 TEST 13: Equipment Level Impact on Combat");
+console.log("══════════════════════════════════════════════════════════════════════\n");
+console.log("Testing: How much advantage do upgraded items give?\n");
+
+// Helper function to set item levels
+function setEquipmentLevel(equipment, level) {
+  return equipment.map(item => ({ ...item, level }));
+}
+
+// Test 1: +0 vs +5 (10% stat bonus)
+console.log("🔹 Round 1: Level 0 vs Level +5 (+10% stats)");
+let level0Wins_vs5 = 0;
+let level5Wins = 0;
+
+for (let i = 0; i < 100; i++) {
+  const baseGear = generateFullSet("Lilahs Cold Heart", "Epic");
+  
+  const player0 = new TestPlayer("Lv0 Gear", 25, setEquipmentLevel(baseGear, 0));
+  const player5 = new TestPlayer("Lv5 Gear", 25, setEquipmentLevel(baseGear, 5));
+  
+  let winner = simulateBattle(player0, player5, false);
+  if (winner === player0) level0Wins_vs5++;
+  else level5Wins++;
+}
+
+console.log(`Level 0: ${level0Wins_vs5} wins (${level0Wins_vs5}%)`);
+console.log(`Level +5 (+10% stats): ${level5Wins} wins (${level5Wins}%)`);
+
+// Test 2: +0 vs +10 (25% stat bonus)
+console.log("\n🔹 Round 2: Level 0 vs Level +10 (+25% stats)");
+let level0Wins_vs10 = 0;
+let level10Wins = 0;
+
+for (let i = 0; i < 100; i++) {
+  const baseGear = generateFullSet("Hasagi", "Epic");
+  
+  const player0 = new TestPlayer("Lv0 Gear", 25, setEquipmentLevel(baseGear, 0));
+  const player10 = new TestPlayer("Lv10 Gear", 25, setEquipmentLevel(baseGear, 10));
+  
+  let winner = simulateBattle(player0, player10, false);
+  if (winner === player0) level0Wins_vs10++;
+  else level10Wins++;
+}
+
+console.log(`Level 0: ${level0Wins_vs10} wins (${level0Wins_vs10}%)`);
+console.log(`Level +10 (+25% stats): ${level10Wins} wins (${level10Wins}%)`);
+
+// Test 3: +0 vs +15 (45% stat bonus)
+console.log("\n🔹 Round 3: Level 0 vs Level +15 (+45% stats)");
+let level0Wins_vs15 = 0;
+let level15Wins = 0;
+
+for (let i = 0; i < 100; i++) {
+  const baseGear = generateFullSet("Olivias Fury", "Epic");
+  
+  const player0 = new TestPlayer("Lv0 Gear", 25, setEquipmentLevel(baseGear, 0));
+  const player15 = new TestPlayer("Lv15 Gear", 25, setEquipmentLevel(baseGear, 15));
+  
+  let winner = simulateBattle(player0, player15, false);
+  if (winner === player0) level0Wins_vs15++;
+  else level15Wins++;
+}
+
+console.log(`Level 0: ${level0Wins_vs15} wins (${level0Wins_vs15}%)`);
+console.log(`Level +15 (+45% stats): ${level15Wins} wins (${level15Wins}%)`);
+
+// Test 4: Can lower rarity +15 beat higher rarity +0?
+console.log("\n🔹 Round 4: Rare +15 vs Epic +0 (Lower rarity but maxed vs fresh high rarity)");
+let rareMaxWins = 0;
+let epicFreshWins = 0;
+
+for (let i = 0; i < 100; i++) {
+  const rareGear = setEquipmentLevel(generateFullSet("Justins Clapping", "Rare"), 15);
+  const epicGear = setEquipmentLevel(generateFullSet("Justins Clapping", "Epic"), 0);
+  
+  const playerRare = new TestPlayer("Rare +15", 25, rareGear);
+  const playerEpic = new TestPlayer("Epic +0", 25, epicGear);
+  
+  let winner = simulateBattle(playerRare, playerEpic, false);
+  if (winner === playerRare) rareMaxWins++;
+  else epicFreshWins++;
+}
+
+console.log(`Rare +15 (+45% stats): ${rareMaxWins} wins (${rareMaxWins}%)`);
+console.log(`Epic +0: ${epicFreshWins} wins (${epicFreshWins}%)`);
 
 console.log("\n══════════════════════════════════════════════════════════════════════");
 console.log("✅ All PVP Battle Tests Completed!");
