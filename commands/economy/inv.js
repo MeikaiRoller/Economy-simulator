@@ -104,32 +104,36 @@ async function handleView(interaction) {
   const userId = interaction.user.id;
   const user = await UserProfile.findOne({ userId });
 
-  if (!user || user.inventory.length === 0) {
-    return interaction.editReply("❌ Your inventory is empty!");
+  if (!user) {
+    return interaction.editReply("❌ You need a profile first! Use `/createprofile` to get started.");
   }
 
   const allItems = await Item.find({});
 
   // Build equipped summary
   let equippedText = "";
-  for (const [slot, itemId] of Object.entries(user.equipped)) {
-    if (itemId) {
-      const item = allItems.find((i) => i.itemId === itemId);
-      equippedText += `**${slot.charAt(0).toUpperCase() + slot.slice(1)}:** ${
-        item?.emoji || "📦"
-      } ${item?.name || itemId}\n`;
+  if (user.equipped && typeof user.equipped === 'object') {
+    for (const [slot, itemId] of Object.entries(user.equipped)) {
+      if (itemId) {
+        const item = allItems.find((i) => i.itemId === itemId);
+        equippedText += `**${slot.charAt(0).toUpperCase() + slot.slice(1)}:** ${
+          item?.emoji || "📦"
+        } ${item?.name || itemId}\n`;
+      }
     }
   }
 
   // Build inventory list
   let inventoryText = "";
-  user.inventory.forEach((invItem) => {
-    const item = allItems.find((i) => i.itemId === invItem.itemId);
-    if (item) {
-      const rarity = item.rarity || "Common";
-      inventoryText += `${item.emoji} **${item.name}** (${rarity}) x${invItem.quantity} — ${item.itemId}\n`;
-    }
-  });
+  if (user.inventory && Array.isArray(user.inventory)) {
+    user.inventory.forEach((invItem) => {
+      const item = allItems.find((i) => i.itemId === invItem.itemId);
+      if (item) {
+        const rarity = item.rarity || "Common";
+        inventoryText += `${item.emoji} **${item.name}** (${rarity}) x${invItem.quantity} — ${item.itemId}\n`;
+      }
+    });
+  }
 
   const embed = new EmbedBuilder()
     .setTitle(`🎒 ${interaction.user.username}'s Inventory`)
