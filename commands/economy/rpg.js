@@ -111,7 +111,7 @@ async function handleAdventure(interaction) {
   const playerLootBoost = activeBuffs.lootBoost || 0;
 
   // Apply cooldown reduction
-  let baseCooldown = 4 * 60 * 60 * 1000; // 4 hours
+  let baseCooldown = 1 * 60 * 60 * 1000; // 1 hour
   if (activeBuffs.cooldownReduction) {
     const reduction = Math.min(activeBuffs.cooldownReduction, 80);
     baseCooldown = Math.floor(baseCooldown * (1 - reduction / 100));

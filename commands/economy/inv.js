@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
 const UserProfile = require("../../schema/UserProfile");
 const Item = require("../../schema/Item");
 
@@ -123,40 +123,100 @@ async function handleView(interaction) {
     }
   }
 
-  // Build inventory list
-  let inventoryText = "";
+  // Prepare inventory items
+  const inventoryItems = [];
   if (user.inventory && Array.isArray(user.inventory)) {
     user.inventory.forEach((invItem) => {
       const item = allItems.find((i) => i.itemId === invItem.itemId);
       if (item) {
         const rarity = item.rarity || "Common";
-        inventoryText += `${item.emoji} **${item.name}** (${rarity}) x${invItem.quantity} — ${item.itemId}\n`;
+        inventoryItems.push({
+          text: `${item.emoji} **${item.name}** (${rarity}) x${invItem.quantity} — ${item.itemId}`,
+          item: item
+        });
       }
     });
   }
 
-  // Ensure values are non-empty strings (Discord requirement)
-  const equippedValue = equippedText.trim() || "Nothing equipped";
-  const inventoryValue = inventoryText.trim() || "No items";
+  // Pagination settings
+  const ITEMS_PER_PAGE = 10;
+  const totalPages = Math.max(1, Math.ceil(inventoryItems.length / ITEMS_PER_PAGE));
+  let currentPage = 0;
 
-  const embed = new EmbedBuilder()
-    .setTitle(`🎒 ${interaction.user.username}'s Inventory`)
-    .addFields(
-      {
-        name: "⚙️ Equipped",
-        value: equippedValue,
-        inline: false,
-      },
-      {
-        name: "📦 Items",
-        value: inventoryValue,
-        inline: false,
-      }
-    )
-    .setColor(0x3498db)
-    .setTimestamp();
+  const generateEmbed = (page) => {
+    const start = page * ITEMS_PER_PAGE;
+    const end = start + ITEMS_PER_PAGE;
+    const pageItems = inventoryItems.slice(start, end);
+    
+    const inventoryValue = pageItems.length > 0 
+      ? pageItems.map(i => i.text).join('\n')
+      : "No items";
+    
+    const equippedValue = (equippedText && equippedText.trim()) || "Nothing equipped";
 
-  await interaction.editReply({ embeds: [embed] });
+    return new EmbedBuilder()
+      .setTitle(`🎒 ${interaction.user.username}'s Inventory`)
+      .addFields(
+        {
+          name: "⚙️ Equipped",
+          value: equippedValue,
+          inline: false,
+        },
+        {
+          name: `📦 Items (Page ${page + 1}/${totalPages})`,
+          value: inventoryValue,
+          inline: false,
+        }
+      )
+      .setColor(0x3498db)
+      .setFooter({ text: `Total items: ${inventoryItems.length}` })
+      .setTimestamp();
+  };
+
+  const generateButtons = (page) => {
+    return new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('inv_prev')
+        .setLabel('◀ Previous')
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(page === 0),
+      new ButtonBuilder()
+        .setCustomId('inv_next')
+        .setLabel('Next ▶')
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(page >= totalPages - 1)
+    );
+  };
+
+  const message = await interaction.editReply({
+    embeds: [generateEmbed(currentPage)],
+    components: totalPages > 1 ? [generateButtons(currentPage)] : []
+  });
+
+  if (totalPages <= 1) return;
+
+  // Button collector
+  const collector = message.createMessageComponentCollector({
+    filter: (i) => i.user.id === userId,
+    time: 300000 // 5 minutes
+  });
+
+  collector.on('collect', async (i) => {
+    if (i.customId === 'inv_prev') {
+      currentPage = Math.max(0, currentPage - 1);
+    } else if (i.customId === 'inv_next') {
+      currentPage = Math.min(totalPages - 1, currentPage + 1);
+    }
+
+    await i.update({
+      embeds: [generateEmbed(currentPage)],
+      components: [generateButtons(currentPage)]
+    });
+  });
+
+  collector.on('end', () => {
+    interaction.editReply({ components: [] }).catch(() => {});
+  });
 }
 
 async function handleEquip(interaction) {
