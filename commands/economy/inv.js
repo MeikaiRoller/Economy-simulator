@@ -135,17 +135,21 @@ async function handleView(interaction) {
     });
   }
 
+  // Ensure values are non-empty strings (Discord requirement)
+  const equippedValue = equippedText.trim() || "Nothing equipped";
+  const inventoryValue = inventoryText.trim() || "No items";
+
   const embed = new EmbedBuilder()
     .setTitle(`🎒 ${interaction.user.username}'s Inventory`)
     .addFields(
       {
         name: "⚙️ Equipped",
-        value: equippedText || "Nothing equipped",
+        value: equippedValue,
         inline: false,
       },
       {
         name: "📦 Items",
-        value: inventoryText || "No items",
+        value: inventoryValue,
         inline: false,
       }
     )
