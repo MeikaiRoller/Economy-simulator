@@ -124,7 +124,12 @@ async function handleAdventure(interaction) {
     const reduction = Math.min(activeBuffs.cooldownReduction, 80);
     baseCooldown = Math.floor(baseCooldown * (1 - reduction / 100));
   }
-  cooldown.endsAt = new Date(Date.now() + baseCooldown);
+  
+  // Mudae-style hourly reset: reset at the top of the next hour
+  const now = new Date();
+  const nextHour = new Date(now);
+  nextHour.setHours(nextHour.getHours() + 1, 0, 0, 0);
+  cooldown.endsAt = nextHour;
   await cooldown.save();
 
   // Adventure Begins
