@@ -1209,9 +1209,35 @@ async function handleRaid(interaction) {
       // If less than 2 hours have passed, they're on cooldown
       if (timeSinceLastAttack < 0) {
         const timeRemaining = Math.ceil(Math.abs(timeSinceLastAttack) / 1000 / 60); // minutes
-        return interaction.editReply({
-          content: `⏳ You're recovering from your last raid! Try again in **${timeRemaining} minutes**.`,
-        });
+        
+        // Fetch raid boss to show progress while on cooldown
+        let raidBoss = await RaidBoss.findOne({});
+        if (!raidBoss) {
+          return interaction.editReply({
+            content: `⏳ You're recovering from your last raid! Try again in **${timeRemaining} minutes**.`,
+          });
+        }
+
+        const leaderboardText = raidBoss.leaderboard
+          .slice(0, 3)
+          .map((entry, idx) => `${idx + 1}. **${entry.username}** - ${entry.damageDealt.toLocaleString()} dmg`)
+          .join("\n") || "No participants yet";
+
+        const embed = new EmbedBuilder()
+          .setTitle(`🐉 ${raidBoss.bossName}`)
+          .setDescription(raidBoss.bossDescription)
+          .addFields(
+            { name: "❤️ Boss Health", value: `${raidBoss.currentHp.toLocaleString()} / ${raidBoss.maxHp.toLocaleString()}`, inline: true },
+            { name: "📊 Progress", value: `${((raidBoss.maxHp - raidBoss.currentHp) / raidBoss.maxHp * 100).toFixed(1)}% damaged`, inline: true },
+            { name: "📊 Health Bar", value: getHealthBar(raidBoss.currentHp, raidBoss.maxHp), inline: false },
+            { name: "🏆 Top Damage Dealers", value: leaderboardText, inline: false },
+            { name: "👥 Total Participants", value: raidBoss.participantsToday.length.toString(), inline: true },
+            { name: "⏳ Your Cooldown", value: `Come back in **${timeRemaining} minute${timeRemaining !== 1 ? 's' : ''}**`, inline: true }
+          )
+          .setColor(0x808080)
+          .setTimestamp();
+
+        return interaction.editReply({ embeds: [embed] });
       }
     }
 
