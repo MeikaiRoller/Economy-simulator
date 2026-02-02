@@ -1012,7 +1012,9 @@ async function simulatePvPCombatRealTime(challengerProfile, opponentProfile, cha
         lastChallengerAction = `💨 **${opponentUser.username}** dodged **${challengerUser.username}**'s attack!`;
       } else {
         const variance = 0.8 + (Math.random() * 0.4);
-        let damage = Math.floor((challengerAttack - opponentDefense) * variance);
+        // Use League of Legends armor formula: Damage = Attack × (1 - Defense/(Defense+100))
+        const defenseReduction = opponentDefense / (opponentDefense + 100);
+        let damage = Math.floor(challengerAttack * (1 - defenseReduction) * variance);
         if (damage < 5) damage = 5;
 
         // Apply set damage bonus
@@ -1045,7 +1047,8 @@ async function simulatePvPCombatRealTime(challengerProfile, opponentProfile, cha
         let procMessages = [];
         
         if (Math.random() * 100 < (15 + challengerLuck * 5)) {
-          const bonusDamage = Math.floor(opponentDefense * 0.5 * variance);
+          // Crushing blow bonus based on armor effectiveness (not raw armor value)
+          const bonusDamage = Math.floor(damage * 0.3);
           damage += bonusDamage;
           procMessages.push("💥");
         }
@@ -1070,14 +1073,16 @@ async function simulatePvPCombatRealTime(challengerProfile, opponentProfile, cha
         lastChallengerAction = `⚔️ **${challengerUser.username}** → ${damage} DMG${isCrit ? " (CRIT)" : ""}${procText}`;
 
         if (furyProc && opponentHp > 0) {
-          let furyDamage = Math.floor((challengerAttack - opponentDefense) * (0.8 + Math.random() * 0.4) * 0.6);
+          const furyDefenseReduction = opponentDefense / (opponentDefense + 100);
+          let furyDamage = Math.floor(challengerAttack * (1 - furyDefenseReduction) * (0.8 + Math.random() * 0.4) * 0.6);
           if (furyDamage < 5) furyDamage = 5;
           opponentHp -= furyDamage;
           lastChallengerAction += ` +${furyDamage}`;
         }
 
         if (opponentHp > 0 && Math.random() * 100 < opponentCounter) {
-          let counterDamage = Math.floor((opponentAttack - challengerDefense) * 0.5);
+          const opponentCounterDefenseReduction = challengerDefense / (challengerDefense + 100);
+          let counterDamage = Math.floor(opponentAttack * (1 - opponentCounterDefenseReduction) * 0.5);
           if (counterDamage < 3) counterDamage = 3;
           challengerHp -= counterDamage;
           lastChallengerAction += ` 🔄-${counterDamage}`;
@@ -1101,7 +1106,9 @@ async function simulatePvPCombatRealTime(challengerProfile, opponentProfile, cha
         lastOpponentAction = `💨 **${challengerUser.username}** dodged **${opponentUser.username}**'s attack!`;
       } else {
         const variance = 0.8 + (Math.random() * 0.4);
-        let oppDamage = Math.floor((opponentAttack - challengerDefense) * variance);
+        // Use League of Legends armor formula: Damage = Attack × (1 - Defense/(Defense+100))
+        const defenseReduction = challengerDefense / (challengerDefense + 100);
+        let oppDamage = Math.floor(opponentAttack * (1 - defenseReduction) * variance);
         if (oppDamage < 5) oppDamage = 5;
 
         // Apply set damage bonus
@@ -1134,7 +1141,8 @@ async function simulatePvPCombatRealTime(challengerProfile, opponentProfile, cha
         let procMessages = [];
         
         if (Math.random() * 100 < (15 + opponentLuck * 5)) {
-          const bonusDamage = Math.floor(challengerDefense * 0.5 * variance);
+          // Crushing blow bonus based on effective damage (not raw defense)
+          const bonusDamage = Math.floor(oppDamage * 0.3);
           oppDamage += bonusDamage;
           procMessages.push("💥");
         }
@@ -1159,14 +1167,16 @@ async function simulatePvPCombatRealTime(challengerProfile, opponentProfile, cha
         lastOpponentAction = `⚔️ **${opponentUser.username}** → ${oppDamage} DMG${isOppCrit ? " (CRIT)" : ""}${procText}`;
 
         if (furyProc && challengerHp > 0) {
-          let furyDamage = Math.floor((opponentAttack - challengerDefense) * (0.8 + Math.random() * 0.4) * 0.6);
+          const opponentFuryDefenseReduction = challengerDefense / (challengerDefense + 100);
+          let furyDamage = Math.floor(opponentAttack * (1 - opponentFuryDefenseReduction) * (0.8 + Math.random() * 0.4) * 0.6);
           if (furyDamage < 5) furyDamage = 5;
           challengerHp -= furyDamage;
           lastOpponentAction += ` +${furyDamage}`;
         }
 
         if (challengerHp > 0 && Math.random() * 100 < challengerCounter) {
-          let counterDamage = Math.floor((challengerAttack - opponentDefense) * 0.5);
+          const challengerCounterDefenseReduction = opponentDefense / (opponentDefense + 100);
+          let counterDamage = Math.floor(challengerAttack * (1 - challengerCounterDefenseReduction) * 0.5);
           if (counterDamage < 3) counterDamage = 3;
           opponentHp -= counterDamage;
           lastOpponentAction += ` 🔄-${counterDamage}`;
