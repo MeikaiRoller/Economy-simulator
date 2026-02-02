@@ -462,6 +462,16 @@ function formatBuffLabel(key) {
   return labels[key] || key;
 }
 
+function getLevelBonusPercent(level) {
+  let totalBonus = 0;
+  for (let i = 1; i <= level; i++) {
+    if (i <= 5) totalBonus += 2;
+    else if (i <= 10) totalBonus += 3;
+    else totalBonus += 4;
+  }
+  return totalBonus;
+}
+
 async function handleInspect(interaction) {
   await interaction.deferReply({ ephemeral: true });
 
@@ -510,6 +520,10 @@ async function handleInspect(interaction) {
     return interaction.editReply("❌ Item not found!");
   }
 
+  const itemLevel = item.level || 0;
+  const levelBonusPercent = getLevelBonusPercent(itemLevel);
+  const levelMultiplier = 1 + (levelBonusPercent / 100);
+
   // Determine quantity and status
   let quantityText = "0";
   let statusText = "";
@@ -529,6 +543,8 @@ async function handleInspect(interaction) {
     { name: "Type", value: item.type || "equippable", inline: true },
     { name: "Slot", value: item.slot || "N/A", inline: true },
     { name: "Price", value: item.price ? `$${item.price.toLocaleString()}` : "N/A", inline: true },
+    { name: "Level", value: `+${itemLevel}`, inline: true },
+    { name: "Upgrade Bonus", value: `+${levelBonusPercent}%`, inline: true },
     { name: "Quantity", value: quantityText, inline: true },
   ];
 
@@ -550,7 +566,7 @@ async function handleInspect(interaction) {
       energy: "Energy Recharge"
     };
     const label = statLabels[item.mainStat.type] || item.mainStat.type;
-    const value = item.mainStat.value;
+    const value = Math.floor(item.mainStat.value * levelMultiplier);
     const suffix = ["critRate", "critDMG"].includes(item.mainStat.type) ? "%" : "";
     statsText += `**Main Stat:** ${label} +${value}${suffix}\n\n`;
   }
@@ -572,7 +588,8 @@ async function handleInspect(interaction) {
         "luck": "Luck"
       };
       const label = statLabels[subStat.type] || subStat.type;
-      const value = subStat.type === "luck" ? `${(subStat.value * 100).toFixed(1)}%` : subStat.value;
+      const boostedValue = subStat.value * levelMultiplier;
+      const value = subStat.type === "luck" ? `${(boostedValue * 100).toFixed(1)}%` : boostedValue.toFixed(1);
       statsText += `• ${label}: +${value}\n`;
     });
   }
