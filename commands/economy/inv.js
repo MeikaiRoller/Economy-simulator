@@ -24,7 +24,7 @@ module.exports = {
         .addStringOption((opt) =>
           opt
             .setName("item")
-            .setDescription("Item position number (e.g., 1, 2, 3) or Item ID")
+            .setDescription("Item position number from /inv view (e.g., 1, 2, 3)")
             .setRequired(true)
         )
     )
@@ -46,7 +46,7 @@ module.exports = {
         .addStringOption((opt) =>
           opt
             .setName("item")
-            .setDescription("Item ID to sell")
+            .setDescription("Item position number from /inv view")
             .setRequired(false)
         )
         .addStringOption((opt) =>
@@ -70,7 +70,7 @@ module.exports = {
         .addStringOption((opt) =>
           opt
             .setName("item")
-            .setDescription("Item ID to inspect")
+            .setDescription("Item position number (or slot name: weapon/head/chest/hands/feet/accessory)")
             .setRequired(true)
         )
     ),
@@ -239,23 +239,16 @@ async function handleEquip(interaction) {
   let itemId;
   let invItem;
 
-  // Check if input is a number (position)
-  const position = parseInt(itemInput);
-  if (!isNaN(position) && position > 0) {
-    // Equip by position
-    if (position > user.inventory.length) {
-      return interaction.editReply(`❌ Invalid position! You only have ${user.inventory.length} items in your inventory.`);
-    }
-    invItem = user.inventory[position - 1];
-    itemId = invItem.itemId;
-  } else {
-    // Equip by item ID
-    itemId = itemInput.toLowerCase();
-    invItem = user.inventory.find((i) => i.itemId === itemId);
-    if (!invItem) {
-      return interaction.editReply("❌ You don't have that item!");
-    }
+  // Equip by position number
+  const position = parseInt(itemInput, 10);
+  if (Number.isNaN(position) || position <= 0) {
+    return interaction.editReply("❌ Please provide a valid item position number from `/inv view`. ");
   }
+  if (!user.inventory || position > user.inventory.length) {
+    return interaction.editReply(`❌ Invalid position! You only have ${user.inventory?.length || 0} items in your inventory.`);
+  }
+  invItem = user.inventory[position - 1];
+  itemId = invItem.itemId;
 
   const item = await Item.findOne({ itemId });
   if (!item || item.type !== "equippable") {
@@ -337,9 +330,17 @@ async function handleSell(interaction) {
     return handleMassSellByRarity(interaction, user, rarityInput);
   }
 
-  // Handle single item sell
-  const itemId = itemIdInput.toLowerCase();
-  const invItem = user.inventory.find((i) => i.itemId === itemId);
+  // Handle single item sell (by position number)
+  const position = parseInt(itemIdInput, 10);
+  if (Number.isNaN(position) || position <= 0) {
+    return interaction.editReply("❌ Please provide a valid item position number from `/inv view`.");
+  }
+  if (!user.inventory || position > user.inventory.length) {
+    return interaction.editReply(`❌ Invalid position! You only have ${user.inventory?.length || 0} items in your inventory.`);
+  }
+
+  const invItem = user.inventory[position - 1];
+  const itemId = invItem.itemId;
   if (!invItem) {
     return interaction.editReply("❌ You don't have that item!");
   }
@@ -456,16 +457,40 @@ async function handleInspect(interaction) {
   await interaction.deferReply({ ephemeral: true });
 
   const userId = interaction.user.id;
-  const itemId = interaction.options.getString("item").toLowerCase();
+  const itemInput = interaction.options.getString("item").toLowerCase();
   const user = await UserProfile.findOne({ userId });
 
   if (!user) {
     return interaction.editReply("❌ You need a profile first!");
   }
 
-  // Check if item is in inventory or equipped
-  const invItem = user.inventory.find((i) => i.itemId === itemId);
-  const isEquipped = Object.values(user.equipped).includes(itemId);
+  const validSlots = ["weapon", "head", "chest", "hands", "feet", "accessory"];
+
+  let itemId;
+  let invItem;
+  let isEquipped = false;
+
+  if (validSlots.includes(itemInput)) {
+    // Inspect equipped item by slot
+    itemId = user.equipped?.[itemInput];
+    if (!itemId) {
+      return interaction.editReply(`❌ You don't have anything equipped in **${itemInput}**.`);
+    }
+    isEquipped = true;
+    invItem = user.inventory.find((i) => i.itemId === itemId);
+  } else {
+    // Inspect by inventory position
+    const position = parseInt(itemInput, 10);
+    if (Number.isNaN(position) || position <= 0) {
+      return interaction.editReply("❌ Please provide a valid item position number from `/inv view` or an equipment slot name.");
+    }
+    if (!user.inventory || position > user.inventory.length) {
+      return interaction.editReply(`❌ Invalid position! You only have ${user.inventory?.length || 0} items in your inventory.`);
+    }
+    invItem = user.inventory[position - 1];
+    itemId = invItem.itemId;
+    isEquipped = Object.values(user.equipped).includes(itemId);
+  }
   
   if (!invItem && !isEquipped) {
     return interaction.editReply("❌ You don't have that item!");
