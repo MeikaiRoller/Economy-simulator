@@ -134,7 +134,7 @@ module.exports = {
       // Calculate actual stat values based on level and buffs
       const baseAttack = 25 + (level * 2); // +2 per level
       const baseDefense = 12 + level; // +1 per level
-      const baseHP = 100;
+      const baseHP = 250 + (level * 15); // +15 per level
 
       const finalAttack = Math.round(baseAttack * (1 + buffs.attack) + (buffs.attackFlat || 0));
       const finalDefense = Math.round(baseDefense * (1 + buffs.defense) + (buffs.defenseFlat || 0));

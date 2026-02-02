@@ -32,7 +32,7 @@ const RARITY_COLORS = {
 const MAIN_STAT_RANGES = {
   weapon: { type: "attack", ranges: { Common: [15, 25], Uncommon: [25, 40], Rare: [40, 60], Epic: [60, 85], Legendary: [85, 120] }},
   head: { type: "defense", ranges: { Common: [10, 18], Uncommon: [18, 30], Rare: [30, 45], Epic: [45, 65], Legendary: [65, 95] }},
-  chest: { type: "hp", ranges: { Common: [50, 80], Uncommon: [80, 120], Rare: [120, 180], Epic: [180, 250], Legendary: [250, 350] }},
+  chest: { type: "hp%", ranges: { Common: [8, 12], Uncommon: [12, 18], Rare: [18, 25], Epic: [25, 35], Legendary: [35, 50] }},
   hands: { type: "critRate", ranges: { Common: [2, 4], Uncommon: [4, 7], Rare: [7, 11], Epic: [11, 16], Legendary: [16, 23] }},
   feet: { type: "critDMG", ranges: { Common: [8, 15], Uncommon: [15, 25], Rare: [25, 40], Epic: [40, 60], Legendary: [60, 90] }},
   accessory: { type: "energy", ranges: { Common: [5, 10], Uncommon: [10, 18], Rare: [18, 28], Epic: [28, 42], Legendary: [42, 65] }}

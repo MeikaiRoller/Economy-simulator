@@ -44,7 +44,7 @@ const ItemSchema = new mongoose.Schema({
   
   // Main Stat
   mainStat: {
-    type: { type: String, enum: ["attack", "defense", "hp", "critRate", "critDMG", "energy"] },
+    type: { type: String, enum: ["attack", "defense", "hp", "hp%", "critRate", "critDMG", "energy"] },
     value: { type: Number, default: 0 }
   },
   
