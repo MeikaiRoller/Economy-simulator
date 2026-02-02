@@ -40,38 +40,51 @@ async function calculateActiveBuffs(userProfile) {
     activeSetBonuses: setBonusData.activeSetBonuses,
     activeElements: setBonusData.activeElements,
     elementalResonance: setBonusData.elementalResonance,
-    elementalReaction: setBonusData.elementalReaction
+    elementalReaction: setBonusData.elementalReaction,
+    dualMastery: setBonusData.dualMastery,
+    adaptiveBonus: setBonusData.adaptiveBonus
   };
 
   // 4. Add buffs from individual items (main stat + sub-stats + legacy buffs)
   for (const itemData of equippedItems) {
-    // New system: main stat
+    // Calculate level bonus multiplier
+    const itemLevel = itemData.level || 0;
+    let levelBonusPercent = 0;
+    for (let i = 1; i <= itemLevel; i++) {
+      if (i <= 5) levelBonusPercent += 2;
+      else if (i <= 10) levelBonusPercent += 3;
+      else levelBonusPercent += 4;
+    }
+    const levelMultiplier = 1 + (levelBonusPercent / 100);
+    
+    // New system: main stat (with level bonus)
     if (itemData.mainStat?.type && itemData.mainStat?.value) {
       const statType = itemData.mainStat.type;
-      if (statType === 'attack') buffs.attackFlat += itemData.mainStat.value;
-      else if (statType === 'defense') buffs.defenseFlat += itemData.mainStat.value;
-      else if (statType === 'hp') buffs.hpFlat += itemData.mainStat.value;
-      else if (statType === 'critRate') buffs.critChance += itemData.mainStat.value;
-      else if (statType === 'critDMG') buffs.critDMG += itemData.mainStat.value;
-      else if (statType === 'energy') buffs.energy += itemData.mainStat.value;
+      const boostedValue = itemData.mainStat.value * levelMultiplier;
+      if (statType === 'attack') buffs.attackFlat += boostedValue;
+      else if (statType === 'defense') buffs.defenseFlat += boostedValue;
+      else if (statType === 'hp') buffs.hpFlat += boostedValue;
+      else if (statType === 'critRate') buffs.critChance += boostedValue;
+      else if (statType === 'critDMG') buffs.critDMG += boostedValue;
+      else if (statType === 'energy') buffs.energy += boostedValue;
     }
     
-    // New system: sub-stats
+    // New system: sub-stats (with level bonus)
     if (itemData.subStats?.length) {
       for (const subStat of itemData.subStats) {
         const statType = subStat.type;
-        const value = subStat.value;
+        const boostedValue = subStat.value * levelMultiplier;
         
-        if (statType === 'attack') buffs.attackFlat += value;
-        else if (statType === 'attack%') buffs.attack += value / 100;
-        else if (statType === 'defense') buffs.defenseFlat += value;
-        else if (statType === 'defense%') buffs.defense += value / 100;
-        else if (statType === 'hp') buffs.hpFlat += value;
-        else if (statType === 'hp%') buffs.hpPercent += value / 100;
-        else if (statType === 'critRate') buffs.critChance += value;
-        else if (statType === 'critDMG') buffs.critDMG += value;
-        else if (statType === 'energy') buffs.energy += value;
-        else if (statType === 'luck') buffs.luck += value;
+        if (statType === 'attack') buffs.attackFlat += boostedValue;
+        else if (statType === 'attack%') buffs.attack += boostedValue / 100;
+        else if (statType === 'defense') buffs.defenseFlat += boostedValue;
+        else if (statType === 'defense%') buffs.defense += boostedValue / 100;
+        else if (statType === 'hp') buffs.hpFlat += boostedValue;
+        else if (statType === 'hp%') buffs.hpPercent += boostedValue / 100;
+        else if (statType === 'critRate') buffs.critChance += boostedValue;
+        else if (statType === 'critDMG') buffs.critDMG += boostedValue;
+        else if (statType === 'energy') buffs.energy += boostedValue;
+        else if (statType === 'luck') buffs.luck += boostedValue;
       }
     }
     

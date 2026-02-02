@@ -64,7 +64,12 @@ module.exports = {
 };
 
 async function handleAdventure(interaction) {
-  await interaction.deferReply();
+  try {
+    await interaction.deferReply();
+  } catch (error) {
+    console.error('Failed to defer reply:', error.message);
+    return; // Interaction expired, can't respond
+  }
 
   const userId = interaction.user.id;
   let userProfile = await UserProfile.findOne({ userId });
@@ -106,7 +111,7 @@ async function handleAdventure(interaction) {
   const playerLootBoost = activeBuffs.lootBoost || 0;
 
   // Apply cooldown reduction
-  let baseCooldown = 4 * 60 * 60 * 1000; // 4 hours
+  let baseCooldown = 1 * 60 * 60 * 1000; // 1 hour
   if (activeBuffs.cooldownReduction) {
     const reduction = Math.min(activeBuffs.cooldownReduction, 80);
     baseCooldown = Math.floor(baseCooldown * (1 - reduction / 100));

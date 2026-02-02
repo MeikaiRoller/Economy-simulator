@@ -2,45 +2,45 @@
 const SET_BONUSES = {
   "Ethans Prowess": {
     element: null,
-    "2": { attack: 0.15 },
-    "3": { attack: 0.25, defense: 0.10 },
-    "6": { attack: 0.50, defense: 0.25, critRate: 10 }
+    "2": { attack: 0.10 },  // Nerfed from 0.15
+    "3": { attack: 0.15, defense: 0.08 },  // Nerfed from 0.25, 0.10
+    "6": { attack: 0.25, defense: 0.15, critRate: 5 }  // Nerfed from 0.50, 0.25, 10
   },
   "Olivias Fury": {
     element: "pyro",
-    "2": { attack: 0.15 },
-    "3": { attack: 0.20, procRate: 0.30 },
-    "6": { attack: 0.50, procRate: 0.60, damageBonus: 0.25 }
+    "2": { attack: 0.10 },  // Nerfed from 0.15
+    "3": { attack: 0.15, procRate: 0.15 },  // Nerfed from 0.20, 0.30
+    "6": { attack: 0.25, procRate: 0.30, damageBonus: 0.15 }  // Nerfed from 0.50, 0.60, 0.25
   },
   "Justins Clapping": {
     element: "electro",
-    "2": { energy: 20 },
-    "3": { energy: 40, critRate: 8 },
-    "6": { energy: 80, critRate: 20, burstDamage: 0.40 }
+    "2": { energy: 15 },  // Nerfed from 20
+    "3": { energy: 25, critRate: 5 },  // Nerfed from 40, 8
+    "6": { energy: 50, critRate: 12, burstDamage: 0.25 }  // Nerfed from 80, 20, 0.40
   },
   "Lilahs Cold Heart": {
     element: "cryo",
-    "2": { critRate: 10 },
-    "3": { critRate: 20, critDMG: 20 },
-    "6": { critRate: 40, critDMG: 60, freezeChance: 0.20 }
+    "2": { critRate: 8 },  // Nerfed from 10
+    "3": { critRate: 12, critDMG: 15 },  // Nerfed from 20, 20
+    "6": { critRate: 20, critDMG: 35, freezeChance: 0.15 }  // Nerfed from 40, 60, 0.20
   },
   "Hasagi": {
     element: "anemo",
-    "2": { cooldownReduction: 10 },
-    "3": { cooldownReduction: 20, dodge: 10 },
-    "6": { cooldownReduction: 40, dodge: 25, swirlDamage: 0.30 }
+    "2": { cooldownReduction: 8 },  // Nerfed from 10
+    "3": { cooldownReduction: 15, dodge: 6 },  // Nerfed from 20, 10
+    "6": { cooldownReduction: 25, dodge: 15, swirlDamage: 0.20 }  // Nerfed from 40, 25, 0.30
   },
   "Maries Zhongli Bodypillow": {
     element: "geo",
-    "2": { defense: 0.20 },
-    "3": { defense: 0.35, hp: 0.15 },
-    "6": { defense: 0.60, hp: 0.30, counterChance: 0.15 }
+    "2": { defense: 0.15 },  // Nerfed from 0.20
+    "3": { defense: 0.25, hp: 0.10 },  // Nerfed from 0.35, 0.15
+    "6": { defense: 0.40, hp: 0.20, counterChance: 0.10 }  // Nerfed from 0.60, 0.30, 0.15
   },
   "Andys Soraka": {
     element: "hydro",
-    "2": { hp: 0.20 },
-    "3": { hp: 0.35, healing: 0.25 },
-    "6": { hp: 0.60, healing: 0.50, lifestealChance: 0.20 }
+    "2": { hp: 0.15 },  // Nerfed from 0.20
+    "3": { hp: 0.25, healing: 0.18 },  // Nerfed from 0.35, 0.25
+    "6": { hp: 0.40, healing: 0.30, lifestealChance: 0.15 }  // Nerfed from 0.60, 0.50, 0.20
   }
 };
 
@@ -48,34 +48,61 @@ const SET_BONUSES = {
 const ELEMENT_RESONANCE = {
   pyro: {
     name: "Pyro Resonance: Fervent Flames",
-    damageBonus: 0.25,
-    procRate: 0.30
+    damageBonus: 0.09,  // Nerfed from 0.15 (was 0.25)
+    procRate: 0.12  // Nerfed from 0.20 (was 0.30)
   },
   electro: {
     name: "Electro Resonance: High Voltage",
-    critDMG: 30,
-    energyRegen: 50
+    critDMG: 12,  // Nerfed from 20 (was 30)
+    energyRegen: 18  // Nerfed from 30 (was 50)
   },
   cryo: {
     name: "Cryo Resonance: Shattering Ice",
-    critRate: 15,
-    critDMG: 30
+    critRate: 6,  // Nerfed from 10 (was 15)
+    critDMG: 12  // Nerfed from 20 (was 30)
   },
   anemo: {
     name: "Anemo Resonance: Impetuous Winds",
-    dodge: 15,
-    swirlDamage: 0.25
+    dodge: 6,  // Nerfed from 10 (was 15)
+    swirlDamage: 0.09  // Nerfed from 0.15 (was 0.25)
   },
   geo: {
     name: "Geo Resonance: Enduring Rock",
-    defense: 0.25,
-    counterDamage: 0.50
+    defense: 0.09,  // Nerfed from 0.15 (was 0.25)
+    counterDamage: 0.18  // Nerfed from 0.30 (was 0.50)
   },
   hydro: {
     name: "Hydro Resonance: Soothing Water",
-    hp: 0.25,
-    lifesteal: 0.15
+    hp: 0.09,  // Nerfed from 0.15 (was 0.25)
+    lifesteal: 0.06  // Nerfed from 0.10 (was 0.15)
   }
+};
+
+// ====================================================================
+// REACTION TOGGLE SYSTEM - Enable/Disable reactions for content updates
+// ====================================================================
+// Set to true to enable a reaction in combat
+// Set to false to disable (will still show in UI but won't proc)
+
+const REACTION_TOGGLES = {
+  // ACTIVE REACTIONS (Currently enabled in game)
+  "pyro-hydro": true,      // Vaporize
+  "pyro-cryo": true,       // Melt
+  "pyro-electro": true,    // Overload
+  "hydro-cryo": true,      // Freeze
+  "electro-cryo": true,    // Superconduct
+  "anemo-pyro": true,      // Pyro Swirl
+  "anemo-hydro": true,     // Hydro Swirl
+  "anemo-cryo": true,      // Cryo Swirl
+  
+  // FUTURE REACTIONS (Planned for future patches)
+  "hydro-electro": false,  // Electro-Charged - PATCH 1.1
+  "anemo-electro": false,  // Electro Swirl - PATCH 1.1
+  "anemo-geo": false,      // Geo Swirl - PATCH 1.2
+  "geo-pyro": false,       // Crystallize (Pyro) - PATCH 1.2
+  "geo-hydro": false,      // Crystallize (Hydro) - PATCH 1.2
+  "geo-electro": false,    // Crystallize (Electro) - PATCH 1.2
+  "geo-cryo": false        // Crystallize (Cryo) - PATCH 1.2
 };
 
 // Elemental reactions (when wearing 3+3 of different elements)
@@ -84,102 +111,197 @@ const ELEMENTAL_REACTIONS = {
     name: "Vaporize",
     effect: "Next attack deals 1.5x damage",
     damageMultiplier: 1.5,
-    procChance: 0.25
+    procChance: 0.35  // Buffed from 0.25
   },
   "pyro-electro": {
     name: "Overload",
-    effect: "Bonus AoE damage + 15% stun chance",
-    bonusDamage: 50,
-    stunChance: 0.15,
-    procChance: 0.20
+    effect: "Bonus AoE damage + 20% stun chance",
+    bonusDamage: 75,  // Buffed from 50
+    stunChance: 0.20,  // Buffed from 0.15
+    procChance: 0.30  // Buffed from 0.20
   },
   "hydro-cryo": {
     name: "Freeze",
-    effect: "20% chance to stun enemy for 1 turn",
-    stunChance: 0.20,
-    procChance: 0.15
+    effect: "25% chance to stun enemy for 1 turn",
+    stunChance: 0.25,  // Buffed from 0.20
+    procChance: 0.25  // Buffed from 0.15
   },
   "electro-cryo": {
     name: "Superconduct",
-    effect: "Reduce enemy defense by 30% for 3 turns",
-    defenseReduction: 0.30,
+    effect: "Reduce enemy defense by 40% for 3 turns",
+    defenseReduction: 0.40,  // Buffed from 0.30
     duration: 3,
-    procChance: 0.20
+    procChance: 0.30  // Buffed from 0.20
   },
   "anemo-pyro": {
     name: "Pyro Swirl",
-    effect: "10% damage reflected to attacker",
-    reflectDamage: 0.10,
-    procChance: 0.15
+    effect: "15% damage reflected to attacker",
+    reflectDamage: 0.15,  // Buffed from 0.10
+    procChance: 0.25  // Buffed from 0.15
   },
   "anemo-hydro": {
     name: "Hydro Swirl",
-    effect: "10% damage reflected + heal 5% of damage",
-    reflectDamage: 0.10,
-    healPercent: 0.05,
-    procChance: 0.15
+    effect: "15% damage reflected + heal 8% of damage",
+    reflectDamage: 0.15,  // Buffed from 0.10
+    healPercent: 0.08,  // Buffed from 0.05
+    procChance: 0.25  // Buffed from 0.15
   },
   "anemo-electro": {
     name: "Electro Swirl",
-    effect: "10% damage reflected + energy boost",
-    reflectDamage: 0.10,
+    effect: "15% damage reflected + energy boost",
+    reflectDamage: 0.15,  // Buffed from 0.10
     energyBonus: 10,
-    procChance: 0.15
+    procChance: 0.25  // Buffed from 0.15
   },
   "anemo-cryo": {
     name: "Cryo Swirl",
-    effect: "10% damage reflected + slow (reduced dodge)",
-    reflectDamage: 0.10,
+    effect: "15% damage reflected + slow (reduced dodge)",
+    reflectDamage: 0.15,  // Buffed from 0.10
     dodgeReduction: 0.10,
-    procChance: 0.15
+    procChance: 0.25  // Buffed from 0.15
   },
   "anemo-geo": {
     name: "Geo Swirl",
-    effect: "10% damage reflected + shield (defense boost)",
-    reflectDamage: 0.10,
+    effect: "15% damage reflected + shield (defense boost)",
+    reflectDamage: 0.15,  // Buffed from 0.10
     defenseBonus: 0.15,
-    procChance: 0.15
+    procChance: 0.25  // Buffed from 0.15
   },
   "geo-pyro": {
     name: "Crystallize (Pyro)",
     effect: "Shield absorbs damage + attack boost",
     shieldPercent: 0.10,
-    attackBonus: 0.10,
-    procChance: 0.15
+    attackBonus: 0.15,  // Buffed from 0.10
+    procChance: 0.25  // Buffed from 0.15
   },
   "geo-hydro": {
     name: "Crystallize (Hydro)",
     effect: "Shield absorbs damage + HP boost",
     shieldPercent: 0.10,
-    hpBonus: 0.10,
-    procChance: 0.15
+    hpBonus: 0.15,  // Buffed from 0.10
+    procChance: 0.25  // Buffed from 0.15
   },
   "geo-electro": {
     name: "Crystallize (Electro)",
     effect: "Shield absorbs damage + energy boost",
     shieldPercent: 0.10,
     energyBonus: 15,
-    procChance: 0.15
+    procChance: 0.25  // Buffed from 0.15
   },
   "geo-cryo": {
     name: "Crystallize (Cryo)",
     effect: "Shield absorbs damage + crit rate boost",
     shieldPercent: 0.10,
-    critRateBonus: 5,
-    procChance: 0.15
+    critRateBonus: 8,  // Buffed from 5
+    procChance: 0.25  // Buffed from 0.15
   },
   "hydro-electro": {
     name: "Electro-Charged",
     effect: "Continuous damage over time",
-    dotDamage: 15,
+    dotDamage: 20,  // Buffed from 15
     duration: 3,
-    procChance: 0.20
+    procChance: 0.30  // Buffed from 0.20
   },
   "pyro-cryo": {
     name: "Melt",
     effect: "Next attack deals 2x damage",
     damageMultiplier: 2.0,
-    procChance: 0.15
+    procChance: 0.25  // Buffed from 0.15
+  }
+};
+
+// Dual Element Mastery (when wearing exactly 3+3 of two different elements)
+// These bonuses compensate for the stat dilution of mixed sets
+const DUAL_MASTERY = {
+  "pyro-electro": {
+    name: "Overload Mastery",
+    attack: 0.12,
+    critRate: 5,
+    energy: 15
+  },
+  "pyro-cryo": {
+    name: "Melt Mastery",
+    attack: 0.15,
+    critDMG: 20,
+    damageBonus: 0.10
+  },
+  "pyro-hydro": {
+    name: "Vaporize Mastery",
+    attack: 0.15,
+    hp: 0.10,
+    damageBonus: 0.08
+  },
+  "pyro-anemo": {
+    name: "Pyro Swirl Mastery",
+    attack: 0.12,
+    dodge: 8,
+    cooldownReduction: 10
+  },
+  "pyro-geo": {
+    name: "Pyro Crystallize Mastery",
+    attack: 0.10,
+    defense: 0.12,
+    counterChance: 0.08
+  },
+  "electro-cryo": {
+    name: "Superconduct Mastery",
+    attack: 0.10,
+    critRate: 8,
+    energy: 20
+  },
+  "electro-hydro": {
+    name: "Electro-Charged Mastery",
+    hp: 0.15,
+    energy: 25,
+    healing: 0.12
+  },
+  "electro-anemo": {
+    name: "Electro Swirl Mastery",
+    energy: 30,
+    dodge: 10,
+    cooldownReduction: 12
+  },
+  "electro-geo": {
+    name: "Electro Crystallize Mastery",
+    defense: 0.15,
+    energy: 20,
+    counterChance: 0.08
+  },
+  "cryo-hydro": {
+    name: "Freeze Mastery",
+    critRate: 10,
+    critDMG: 25,
+    hp: 0.10
+  },
+  "cryo-anemo": {
+    name: "Cryo Swirl Mastery",
+    critRate: 8,
+    critDMG: 20,
+    dodge: 8
+  },
+  "cryo-geo": {
+    name: "Cryo Crystallize Mastery",
+    critRate: 8,
+    defense: 0.15,
+    hp: 0.10
+  },
+  "hydro-anemo": {
+    name: "Hydro Swirl Mastery",
+    hp: 0.15,
+    healing: 0.15,
+    dodge: 8
+  },
+  "hydro-geo": {
+    name: "Hydro Crystallize Mastery",
+    hp: 0.20,
+    defense: 0.15,
+    counterChance: 0.08
+  },
+  "anemo-geo": {
+    name: "Geo Swirl Mastery",
+    defense: 0.15,
+    dodge: 10,
+    counterChance: 0.10
   }
 };
 
@@ -189,6 +311,62 @@ const ELEMENTAL_REACTIONS = {
 function getReactionKey(elem1, elem2) {
   if (!elem1 || !elem2 || elem1 === elem2) return null;
   return [elem1, elem2].sort().join('-');
+}
+
+/**
+ * Calculate adaptive bonus for 3+3 builds based on combat style
+ * Rewards builds that excel in specific stat categories
+ */
+function calculateAdaptiveBonus(rawStats) {
+  const adaptiveBonuses = {
+    name: "Adaptive Resonance",
+    bonuses: {},
+    triggers: []
+  };
+  
+  // High Crit Build (50%+ crit rate) → Extra Crit Damage
+  if (rawStats.critRate >= 50) {
+    adaptiveBonuses.bonuses.critDMG = (adaptiveBonuses.bonuses.critDMG || 0) + 35;
+    adaptiveBonuses.triggers.push("Critical Strike Master");
+  }
+  
+  // High HP Build (1200+ HP) → Lifesteal & HP boost
+  if (rawStats.hp >= 1200) {
+    adaptiveBonuses.bonuses.lifesteal = (adaptiveBonuses.bonuses.lifesteal || 0) + 0.12;
+    adaptiveBonuses.bonuses.hp = (adaptiveBonuses.bonuses.hp || 0) + 0.08;
+    adaptiveBonuses.triggers.push("Fortified Vitality");
+  }
+  
+  // High Dodge Build (10%+ dodge) → Counter damage & attack
+  if (rawStats.dodge >= 10) {
+    adaptiveBonuses.bonuses.counterDamage = (adaptiveBonuses.bonuses.counterDamage || 0) + 0.35;
+    adaptiveBonuses.bonuses.attack = (adaptiveBonuses.bonuses.attack || 0) + 0.10;
+    adaptiveBonuses.triggers.push("Evasive Striker");
+  }
+  
+  // High Attack Build (300+ attack) → Damage bonus
+  if (rawStats.attack >= 300) {
+    adaptiveBonuses.bonuses.damageBonus = (adaptiveBonuses.bonuses.damageBonus || 0) + 0.12;
+    adaptiveBonuses.bonuses.attack = (adaptiveBonuses.bonuses.attack || 0) + 0.08;
+    adaptiveBonuses.triggers.push("Overwhelming Force");
+  }
+  
+  // High Defense Build (180+ defense) → Defense & counter chance
+  if (rawStats.defense >= 180) {
+    adaptiveBonuses.bonuses.defense = (adaptiveBonuses.bonuses.defense || 0) + 0.12;
+    adaptiveBonuses.bonuses.counterChance = (adaptiveBonuses.bonuses.counterChance || 0) + 0.08;
+    adaptiveBonuses.triggers.push("Impenetrable Wall");
+  }
+  
+  // Balanced Build (3+ triggers) → All stats boost
+  if (adaptiveBonuses.triggers.length >= 3) {
+    adaptiveBonuses.bonuses.attack = (adaptiveBonuses.bonuses.attack || 0) + 0.05;
+    adaptiveBonuses.bonuses.defense = (adaptiveBonuses.bonuses.defense || 0) + 0.05;
+    adaptiveBonuses.bonuses.hp = (adaptiveBonuses.bonuses.hp || 0) + 0.05;
+    adaptiveBonuses.triggers.push("⭐ VERSATILE BUILD");
+  }
+  
+  return adaptiveBonuses.triggers.length > 0 ? adaptiveBonuses : null;
 }
 
 /**
@@ -236,6 +414,34 @@ function calculateSetBonuses(equippedItems) {
   const activeElements = Array.from(elements);
   let elementalResonance = null;
   let elementalReaction = null;
+  let dualMastery = null;
+  let adaptiveBonus = null;
+  
+  // Calculate raw stats before bonuses for adaptive bonus calculation
+  const rawStats = {
+    attack: 0,
+    defense: 0,
+    hp: 0,
+    critRate: 0,
+    dodge: 0
+  };
+  
+  equippedItems.forEach(item => {
+    if (item.mainStat) {
+      if (item.mainStat.type === 'attack') rawStats.attack += item.mainStat.value;
+      else if (item.mainStat.type === 'defense') rawStats.defense += item.mainStat.value;
+      else if (item.mainStat.type === 'hp') rawStats.hp += item.mainStat.value;
+      else if (item.mainStat.type === 'critRate') rawStats.critRate += item.mainStat.value;
+    }
+    if (item.subStats) {
+      item.subStats.forEach(sub => {
+        if (sub.type === 'attack') rawStats.attack += sub.value;
+        else if (sub.type === 'defense') rawStats.defense += sub.value;
+        else if (sub.type === 'hp') rawStats.hp += sub.value;
+        else if (sub.type === 'critRate') rawStats.critRate += sub.value;
+      });
+    }
+  });
   
   // Apply set bonuses
   Object.entries(setCounts).forEach(([setName, count]) => {
@@ -283,8 +489,36 @@ function calculateSetBonuses(equippedItems) {
   // Check for elemental reaction (3+3 different elements)
   if (activeElements.length === 2) {
     const reactionKey = getReactionKey(activeElements[0], activeElements[1]);
-    if (reactionKey && ELEMENTAL_REACTIONS[reactionKey]) {
+    
+    // Check if reaction exists AND is enabled
+    if (reactionKey && ELEMENTAL_REACTIONS[reactionKey] && REACTION_TOGGLES[reactionKey]) {
       elementalReaction = ELEMENTAL_REACTIONS[reactionKey];
+    }
+    
+    // Check if this is a 3+3 setup for dual mastery
+    const setCounts3Plus = Object.entries(setCounts).filter(([_, count]) => count >= 3);
+    if (setCounts3Plus.length === 2) {
+      // Exactly 2 sets with 3+ pieces each = 3+3 dual element setup
+      if (DUAL_MASTERY[reactionKey]) {
+        dualMastery = DUAL_MASTERY[reactionKey];
+        
+        // Apply dual mastery bonuses
+        Object.entries(dualMastery).forEach(([key, value]) => {
+          if (key !== 'name' && bonuses[key] !== undefined) {
+            bonuses[key] += value;
+          }
+        });
+      }
+      
+      // Calculate and apply adaptive bonuses for 3+3 builds
+      adaptiveBonus = calculateAdaptiveBonus(rawStats);
+      if (adaptiveBonus) {
+        Object.entries(adaptiveBonus.bonuses).forEach(([key, value]) => {
+          if (bonuses[key] !== undefined) {
+            bonuses[key] += value;
+          }
+        });
+      }
     }
   }
   
@@ -293,7 +527,9 @@ function calculateSetBonuses(equippedItems) {
     activeSetBonuses,
     activeElements,
     elementalResonance,
-    elementalReaction
+    elementalReaction,
+    dualMastery,
+    adaptiveBonus
   };
 }
 
@@ -301,6 +537,9 @@ module.exports = {
   SET_BONUSES,
   ELEMENT_RESONANCE,
   ELEMENTAL_REACTIONS,
+  REACTION_TOGGLES,  // Export toggles for easy access
+  DUAL_MASTERY,
   calculateSetBonuses,
+  calculateAdaptiveBonus,
   getReactionKey
 };

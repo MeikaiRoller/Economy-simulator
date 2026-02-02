@@ -54,6 +54,9 @@ const ItemSchema = new mongoose.Schema({
     value: { type: Number }
   }],
   
+  // Enhancement System
+  level: { type: Number, default: 0, min: 0, max: 15 },
+  
   // Legacy support for old items
   price: { type: Number, default: 0 },
   shopPrice: { type: Number, default: 0 },

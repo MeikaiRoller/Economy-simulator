@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
 const UserProfile = require("../../schema/UserProfile");
 const Item = require("../../schema/Item");
 
@@ -109,51 +109,119 @@ async function handleView(interaction) {
   const userId = interaction.user.id;
   const user = await UserProfile.findOne({ userId });
 
-  if (!user || user.inventory.length === 0) {
-    return interaction.editReply("❌ Your inventory is empty!");
+  if (!user) {
+    return interaction.editReply("❌ You need a profile first! Use `/createprofile` to get started.");
   }
 
   const allItems = await Item.find({});
 
   // Build equipped summary
   let equippedText = "";
-  for (const [slot, itemId] of Object.entries(user.equipped)) {
-    if (itemId) {
-      const item = allItems.find((i) => i.itemId === itemId);
-      equippedText += `**${slot.charAt(0).toUpperCase() + slot.slice(1)}:** ${
-        item?.emoji || "📦"
-      } ${item?.name || itemId}\n`;
+  if (user.equipped && typeof user.equipped === 'object') {
+    for (const [slot, itemId] of Object.entries(user.equipped)) {
+      if (itemId) {
+        const item = allItems.find((i) => i.itemId === itemId);
+        equippedText += `**${slot.charAt(0).toUpperCase() + slot.slice(1)}:** ${
+          item?.emoji || "📦"
+        } ${item?.name || itemId}\n`;
+      }
     }
   }
 
-  // Build inventory list
-  let inventoryText = "";
-  user.inventory.forEach((invItem) => {
-    const item = allItems.find((i) => i.itemId === invItem.itemId);
-    if (item) {
-      const rarity = item.rarity || "Common";
-      inventoryText += `${item.emoji} **${item.name}** (${rarity}) x${invItem.quantity} — ${item.itemId}\n`;
-    }
+  // Prepare inventory items
+  const inventoryItems = [];
+  if (user.inventory && Array.isArray(user.inventory)) {
+    user.inventory.forEach((invItem) => {
+      const item = allItems.find((i) => i.itemId === invItem.itemId);
+      if (item) {
+        const rarity = item.rarity || "Common";
+        inventoryItems.push({
+          text: `${item.emoji} **${item.name}** (${rarity}) x${invItem.quantity} — ${item.itemId}`,
+          item: item
+        });
+      }
+    });
+  }
+
+  // Pagination settings
+  const ITEMS_PER_PAGE = 10;
+  const totalPages = Math.max(1, Math.ceil(inventoryItems.length / ITEMS_PER_PAGE));
+  let currentPage = 0;
+
+  const generateEmbed = (page) => {
+    const start = page * ITEMS_PER_PAGE;
+    const end = start + ITEMS_PER_PAGE;
+    const pageItems = inventoryItems.slice(start, end);
+    
+    const inventoryValue = pageItems.length > 0 
+      ? pageItems.map(i => i.text).join('\n')
+      : "No items";
+    
+    const equippedValue = (equippedText && equippedText.trim()) || "Nothing equipped";
+
+    return new EmbedBuilder()
+      .setTitle(`🎒 ${interaction.user.username}'s Inventory`)
+      .addFields(
+        {
+          name: "⚙️ Equipped",
+          value: equippedValue,
+          inline: false,
+        },
+        {
+          name: `📦 Items (Page ${page + 1}/${totalPages})`,
+          value: inventoryValue,
+          inline: false,
+        }
+      )
+      .setColor(0x3498db)
+      .setFooter({ text: `Total items: ${inventoryItems.length}` })
+      .setTimestamp();
+  };
+
+  const generateButtons = (page) => {
+    return new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('inv_prev')
+        .setLabel('◀ Previous')
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(page === 0),
+      new ButtonBuilder()
+        .setCustomId('inv_next')
+        .setLabel('Next ▶')
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(page >= totalPages - 1)
+    );
+  };
+
+  const message = await interaction.editReply({
+    embeds: [generateEmbed(currentPage)],
+    components: totalPages > 1 ? [generateButtons(currentPage)] : []
   });
 
-  const embed = new EmbedBuilder()
-    .setTitle(`🎒 ${interaction.user.username}'s Inventory`)
-    .addFields(
-      {
-        name: "⚙️ Equipped",
-        value: equippedText || "Nothing equipped",
-        inline: false,
-      },
-      {
-        name: "📦 Items",
-        value: inventoryText || "No items",
-        inline: false,
-      }
-    )
-    .setColor(0x3498db)
-    .setTimestamp();
+  if (totalPages <= 1) return;
 
-  await interaction.editReply({ embeds: [embed] });
+  // Button collector
+  const collector = message.createMessageComponentCollector({
+    filter: (i) => i.user.id === userId,
+    time: 300000 // 5 minutes
+  });
+
+  collector.on('collect', async (i) => {
+    if (i.customId === 'inv_prev') {
+      currentPage = Math.max(0, currentPage - 1);
+    } else if (i.customId === 'inv_next') {
+      currentPage = Math.min(totalPages - 1, currentPage + 1);
+    }
+
+    await i.update({
+      embeds: [generateEmbed(currentPage)],
+      components: [generateButtons(currentPage)]
+    });
+  });
+
+  collector.on('end', () => {
+    interaction.editReply({ components: [] }).catch(() => {});
+  });
 }
 
 async function handleEquip(interaction) {

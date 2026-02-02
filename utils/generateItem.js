@@ -146,6 +146,7 @@ function generateItem(slot, rarity = "Common", setName = null) {
       value: mainStatValue
     },
     subStats,
+    level: 0, // New items start at level 0
     price,
     shopPrice: price,
     emoji: setData.emoji || SLOT_EMOJIS[slot]
