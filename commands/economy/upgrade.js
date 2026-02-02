@@ -121,6 +121,9 @@ module.exports = {
     
     if (success) {
       item.level += 1;
+      // Increase resale value by half the upgrade cost
+      const valueIncrease = Math.floor(cost * 0.5);
+      item.price = Math.max(0, (item.price || 0) + valueIncrease);
       await item.save();
       
       embed.setDescription(`✅ **SUCCESS!**\n\n**${item.name}** has been enhanced to **+${item.level}**!`);
