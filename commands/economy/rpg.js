@@ -1588,12 +1588,29 @@ async function calculateBossStats() {
   const avgLevel = allPlayers.reduce((sum, p) => sum + p.level, 0) / allPlayers.length || 1;
 
   // Scale boss to be challenging for the group
-  return {
+  const bossStats = {
     level: Math.ceil(avgLevel * 1.5),
     attack: Math.ceil(avgDamageAllPlayers * 1.8), // Boss does ~1.8x avg player damage
     defense: Math.ceil((avgLevel + 12) * 1.5),
     maxHp: Math.ceil(5000 + allPlayers.length * (avgDamageAllPlayers * 15)) // HP scales with player count AND avg damage
   };
+
+  // Log boss generation
+  console.log('\n' + '='.repeat(70));
+  console.log(`🐉 LE GROMP STATS GENERATED - ${new Date().toLocaleString()}`);
+  console.log('='.repeat(70));
+  console.log(`📊 Player Data:`);
+  console.log(`   Total Players: ${allPlayers.length}`);
+  console.log(`   Avg Player Level: ${avgLevel.toFixed(1)}`);
+  console.log(`   Avg Player Damage: ${avgDamageAllPlayers.toFixed(1)}/turn`);
+  console.log(`\n🐉 Boss Stats:`);
+  console.log(`   Level: ${bossStats.level}`);
+  console.log(`   Attack: ${bossStats.attack}`);
+  console.log(`   Defense: ${bossStats.defense}`);
+  console.log(`   Max HP: ${bossStats.maxHp.toLocaleString()}`);
+  console.log('='.repeat(70) + '\n');
+
+  return bossStats;
 }
 
 
