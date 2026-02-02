@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
 const UserProfile = require("../../schema/UserProfile");
 const Item = require("../../schema/Item");
+const calculateActiveBuffs = require("../../utils/calculateBuffs");
 
 const RARITY_COLORS = {
   Common: 0x808080,
@@ -16,6 +17,11 @@ module.exports = {
     .setDescription("Inventory commands")
     .addSubcommand((sub) =>
       sub.setName("view").setDescription("View your inventory and equipment")
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("loadout")
+        .setDescription("View your equipped gear and combat stats")
     )
     .addSubcommand((sub) =>
       sub
@@ -87,6 +93,9 @@ module.exports = {
 
     if (subcommand === "view") {
       return handleView(interaction);
+    }
+    if (subcommand === "loadout") {
+      return handleLoadout(interaction);
     }
     if (subcommand === "equip") {
       return handleEquip(interaction);
@@ -588,6 +597,137 @@ async function handleInspect(interaction) {
     .setDescription(item.description || "No description.")
     .addFields(fields)
     .setColor(RARITY_COLORS[item.rarity] || 0x3498db)
+    .setTimestamp();
+
+  return interaction.editReply({ embeds: [embed] });
+}
+
+async function handleLoadout(interaction) {
+  await interaction.deferReply({ ephemeral: true });
+
+  const userId = interaction.user.id;
+  const user = await UserProfile.findOne({ userId });
+
+  if (!user) {
+    return interaction.editReply("❌ You need a profile first! Use `/createprofile` to get started.");
+  }
+
+  let buffs;
+  try {
+    buffs = await calculateActiveBuffs(user);
+  } catch (error) {
+    console.error("Loadout buff calculation error:", error);
+    buffs = {
+      attack: 0,
+      defense: 0,
+      hpPercent: 0,
+      attackFlat: 0,
+      defenseFlat: 0,
+      hpFlat: 0,
+      critChance: 0,
+      critDMG: 0,
+      energy: 0,
+      dodge: 0,
+      luck: 0,
+      damageBonus: 0,
+      counterChance: 0,
+      counterDamage: 0,
+      lifesteal: 0,
+      lifestealChance: 0,
+      setInfo: { activeSetBonuses: [], activeElements: [], elementalResonance: null, elementalReaction: null }
+    };
+  }
+
+  const level = user.level || 1;
+
+  // Base stats
+  const baseAttack = 25 + (level * 2);
+  const baseDefense = 12 + level;
+  const baseHP = 250 + (level * 15);
+
+  // Final stats
+  const finalAttack = Math.round(baseAttack * (1 + (buffs.attack || 0)) + (buffs.attackFlat || 0));
+  const finalDefense = Math.round(baseDefense * (1 + (buffs.defense || 0)) + (buffs.defenseFlat || 0));
+  const finalHP = Math.round(baseHP * (1 + (buffs.hpPercent || 0)) + (buffs.hpFlat || 0));
+  const finalCritRate = Math.round(5 + (buffs.critChance || 0));
+  const finalCritDMG = Math.round(50 + (buffs.critDMG || 0));
+  const finalEnergy = Math.round(buffs.energy || 0);
+  const finalDodge = Math.round((buffs.dodge || 0));
+  const finalCounterChance = Math.round((buffs.counterChance || 0) * 100);
+  const finalCounterDamage = Math.round((buffs.counterDamage || 0) * 100);
+  const finalDamageBonus = Math.round((buffs.damageBonus || 0) * 100);
+  const finalLifesteal = Math.round((buffs.lifesteal || 0) * 100);
+  const finalLifestealChance = Math.round((buffs.lifestealChance || 0) * 100);
+
+  // Equipped items list
+  const slots = [
+    { key: "weapon", emoji: "⚔️", label: "Weapon" },
+    { key: "head", emoji: "👑", label: "Head" },
+    { key: "chest", emoji: "🧥", label: "Chest" },
+    { key: "hands", emoji: "🤚", label: "Hands" },
+    { key: "feet", emoji: "🥾", label: "Feet" },
+    { key: "accessory", emoji: "💎", label: "Accessory" },
+  ];
+
+  const rarityColors = {
+    Common: "⚪",
+    Uncommon: "🟢",
+    Rare: "🔵",
+    Epic: "🟣",
+    Legendary: "🟠",
+  };
+
+  const equippedLines = [];
+  for (const slot of slots) {
+    const itemId = user.equipped?.[slot.key];
+    if (!itemId) {
+      equippedLines.push(`${slot.emoji} **${slot.label}:** _Empty_`);
+      continue;
+    }
+    const item = await Item.findOne({ itemId });
+    if (item) {
+      const rarity = item.rarity || "Common";
+      const colorIndicator = rarityColors[rarity] || "⚪";
+      equippedLines.push(`${slot.emoji} **${slot.label}:** ${item.emoji || "📦"} ${item.name} ${colorIndicator}`);
+    } else {
+      equippedLines.push(`${slot.emoji} **${slot.label}:** ${itemId}`);
+    }
+  }
+
+  const setInfo = buffs.setInfo || {};
+  const setLines = [];
+  if (setInfo.activeSetBonuses?.length) {
+    setLines.push(`📦 ${setInfo.activeSetBonuses.join("\n📦 ")}`);
+  }
+  if (setInfo.dualMastery?.name) {
+    setLines.push(`🔥⚡ **${setInfo.dualMastery.name}**`);
+  }
+  if (setInfo.adaptiveBonus?.triggers?.length) {
+    setLines.push(`⚡ **Adaptive:** ${setInfo.adaptiveBonus.triggers.join(", ")}`);
+  }
+
+  const resonanceLines = [];
+  if (setInfo.elementalResonance?.name) {
+    resonanceLines.push(`✨ ${setInfo.elementalResonance.name}`);
+  }
+  if (setInfo.elementalReaction?.name) {
+    const reactionEffect = setInfo.elementalReaction.effect || "";
+    resonanceLines.push(`💥 ${setInfo.elementalReaction.name}${reactionEffect ? ` — ${reactionEffect}` : ""}`);
+  }
+
+  const embed = new EmbedBuilder()
+    .setTitle(`🎒 Loadout — ${interaction.user.username}`)
+    .setDescription("Combat-focused view of your equipped gear and stat breakdown.")
+    .addFields(
+      { name: "🛡️ Equipped", value: equippedLines.join("\n"), inline: false },
+      { name: "📦 Set Bonuses", value: setLines.length ? setLines.join("\n") : "None", inline: false },
+      { name: "✨ Resonance / Reactions", value: resonanceLines.length ? resonanceLines.join("\n") : "None", inline: false },
+      { name: "⚙️ Base Stats", value: `Level: ${level}\nHP: ${baseHP}\nATK: ${baseAttack}\nDEF: ${baseDefense}`, inline: true },
+      { name: "⚔️ Final Stats", value: `HP: ${finalHP}\nATK: ${finalAttack}\nDEF: ${finalDefense}\nCrit Rate: ${finalCritRate}%\nCrit DMG: ${finalCritDMG}%\nDamage Bonus: +${finalDamageBonus}%\nEnergy: ${finalEnergy}`, inline: true },
+      { name: "🛡️ Defensive", value: `Dodge: ${finalDodge}%\nCounter Chance: ${finalCounterChance}%\nCounter Damage: +${finalCounterDamage}%\nLifesteal: +${finalLifesteal}%\nLifesteal Chance: ${finalLifestealChance}%`, inline: true }
+    )
+    .setColor(0x3498db)
+    .setFooter({ text: "Stats shown = base + gear + set bonuses" })
     .setTimestamp();
 
   return interaction.editReply({ embeds: [embed] });

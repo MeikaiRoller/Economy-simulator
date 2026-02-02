@@ -87,7 +87,7 @@ module.exports = {
     
     // Calculate cost
     const cost = UPGRADE_COSTS[item.rarity];
-    const totalMoney = userProfile.wallet + userProfile.bank;
+    const totalMoney = (userProfile.balance || 0) + (userProfile.bankBalance || 0);
     
     if (totalMoney < cost) {
       return interaction.reply({
@@ -97,12 +97,12 @@ module.exports = {
     }
     
     // Deduct cost
-    if (userProfile.wallet >= cost) {
-      userProfile.wallet -= cost;
+    if ((userProfile.balance || 0) >= cost) {
+      userProfile.balance -= cost;
     } else {
-      const remaining = cost - userProfile.wallet;
-      userProfile.wallet = 0;
-      userProfile.bank -= remaining;
+      const remaining = cost - (userProfile.balance || 0);
+      userProfile.balance = 0;
+      userProfile.bankBalance = Math.max(0, (userProfile.bankBalance || 0) - remaining);
     }
     
     // Check success rate
@@ -156,7 +156,7 @@ module.exports = {
       });
     }
     
-    embed.setFooter({ text: `Remaining Gold: ${(userProfile.wallet + userProfile.bank).toLocaleString()}` });
+    embed.setFooter({ text: `Remaining Gold: ${((userProfile.balance || 0) + (userProfile.bankBalance || 0)).toLocaleString()}` });
     
     await userProfile.save();
     await interaction.reply({ embeds: [embed] });
