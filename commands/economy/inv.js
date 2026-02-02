@@ -24,7 +24,7 @@ module.exports = {
         .addStringOption((opt) =>
           opt
             .setName("item")
-            .setDescription("Item ID to equip")
+            .setDescription("Item position number (e.g., 1, 2, 3) or Item ID")
             .setRequired(true)
         )
     )
@@ -131,13 +131,14 @@ async function handleView(interaction) {
   // Prepare inventory items
   const inventoryItems = [];
   if (user.inventory && Array.isArray(user.inventory)) {
-    user.inventory.forEach((invItem) => {
+    user.inventory.forEach((invItem, index) => {
       const item = allItems.find((i) => i.itemId === invItem.itemId);
       if (item) {
         const rarity = item.rarity || "Common";
         inventoryItems.push({
-          text: `${item.emoji} **${item.name}** (${rarity}) x${invItem.quantity} — ${item.itemId}`,
-          item: item
+          text: `**${index + 1}.** ${item.emoji} **${item.name}** (${rarity}) x${invItem.quantity} — ${item.itemId}`,
+          item: item,
+          position: index + 1
         });
       }
     });
@@ -228,16 +229,32 @@ async function handleEquip(interaction) {
   await interaction.deferReply();
 
   const userId = interaction.user.id;
-  const itemId = interaction.options.getString("item").toLowerCase();
+  const itemInput = interaction.options.getString("item");
   const user = await UserProfile.findOne({ userId });
 
   if (!user) {
     return interaction.editReply("❌ You need a profile first!");
   }
 
-  const invItem = user.inventory.find((i) => i.itemId === itemId);
-  if (!invItem) {
-    return interaction.editReply("❌ You don't have that item!");
+  let itemId;
+  let invItem;
+
+  // Check if input is a number (position)
+  const position = parseInt(itemInput);
+  if (!isNaN(position) && position > 0) {
+    // Equip by position
+    if (position > user.inventory.length) {
+      return interaction.editReply(`❌ Invalid position! You only have ${user.inventory.length} items in your inventory.`);
+    }
+    invItem = user.inventory[position - 1];
+    itemId = invItem.itemId;
+  } else {
+    // Equip by item ID
+    itemId = itemInput.toLowerCase();
+    invItem = user.inventory.find((i) => i.itemId === itemId);
+    if (!invItem) {
+      return interaction.editReply("❌ You don't have that item!");
+    }
   }
 
   const item = await Item.findOne({ itemId });
