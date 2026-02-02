@@ -88,15 +88,39 @@ module.exports = {
       const pvpNetProfit = (userProfile.pvpStats?.totalWon || 0) - (userProfile.pvpStats?.totalLost || 0);
       const pvpNetStr = pvpNetProfit >= 0 ? `+$${pvpNetProfit.toLocaleString()}` : `-$${Math.abs(pvpNetProfit).toLocaleString()}`;
 
-      // Get equipped items
+      // Get equipped items with names and rarity colors
       let equipmentList = "❌ None";
       const equipped = [];
-      if (userProfile.equipped?.weapon) equipped.push(`⚔️ **Weapon:** ${userProfile.equipped.weapon}`);
-      if (userProfile.equipped?.head) equipped.push(`👑 **Head:** ${userProfile.equipped.head}`);
-      if (userProfile.equipped?.chest) equipped.push(`🧥 **Chest:** ${userProfile.equipped.chest}`);
-      if (userProfile.equipped?.hands) equipped.push(`🤚 **Hands:** ${userProfile.equipped.hands}`);
-      if (userProfile.equipped?.feet) equipped.push(`🥾 **Feet:** ${userProfile.equipped.feet}`);
-      if (userProfile.equipped?.accessory) equipped.push(`💎 **Accessory:** ${userProfile.equipped.accessory}`);
+      const slots = [
+        { key: 'weapon', emoji: '⚔️', label: 'Weapon' },
+        { key: 'head', emoji: '👑', label: 'Head' },
+        { key: 'chest', emoji: '🧥', label: 'Chest' },
+        { key: 'hands', emoji: '🤚', label: 'Hands' },
+        { key: 'feet', emoji: '🥾', label: 'Feet' },
+        { key: 'accessory', emoji: '💎', label: 'Accessory' }
+      ];
+      
+      const rarityColors = {
+        Common: '⚪',
+        Uncommon: '🟢',
+        Rare: '🔵',
+        Epic: '🟣',
+        Legendary: '🟠'
+      };
+      
+      for (const slot of slots) {
+        if (userProfile.equipped?.[slot.key]) {
+          const itemId = userProfile.equipped[slot.key];
+          const item = await Item.findOne({ itemId });
+          if (item) {
+            const rarity = item.rarity || "Common";
+            const colorIndicator = rarityColors[rarity] || '⚪';
+            equipped.push(`${slot.emoji} **${slot.label}:** ${item.emoji || '📦'} ${item.name} ${colorIndicator}`);
+          } else {
+            equipped.push(`${slot.emoji} **${slot.label}:** ${itemId}`);
+          }
+        }
+      }
       if (equipped.length > 0) equipmentList = equipped.join("\n");
 
       // Get buffs (safe)

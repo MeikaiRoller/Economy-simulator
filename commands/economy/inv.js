@@ -35,27 +35,32 @@ module.exports = {
         .addStringOption((opt) =>
           opt
             .setName("slot")
-            .setDescription("Slot to unequip")
+            .setDescription("Slot to unequip (weapon, head, chest, hands, feet, accessory)")
             .setRequired(true)
-            .addChoices(
-              { name: "Weapon", value: "weapon" },
-              { name: "Head", value: "head" },
-              { name: "Chest", value: "chest" },
-              { name: "Hands", value: "hands" },
-              { name: "Feet", value: "feet" },
-              { name: "Accessory", value: "accessory" }
-            )
         )
     )
     .addSubcommand((sub) =>
       sub
         .setName("sell")
-        .setDescription("Sell an item")
+        .setDescription("Sell an item or all items of a rarity")
         .addStringOption((opt) =>
           opt
             .setName("item")
             .setDescription("Item ID to sell")
-            .setRequired(true)
+            .setRequired(false)
+        )
+        .addStringOption((opt) =>
+          opt
+            .setName("rarity")
+            .setDescription("Sell all items of this rarity")
+            .setRequired(false)
+            .addChoices(
+              { name: "Common", value: "Common" },
+              { name: "Uncommon", value: "Uncommon" },
+              { name: "Rare", value: "Rare" },
+              { name: "Epic", value: "Epic" },
+              { name: "Legendary", value: "Legendary" }
+            )
         )
     )
     .addSubcommand((sub) =>
@@ -191,25 +196,33 @@ async function handleUnequip(interaction) {
   await interaction.deferReply();
 
   const userId = interaction.user.id;
-  const slot = interaction.options.getString("slot");
+  const slotInput = interaction.options.getString("slot").toLowerCase();
   const user = await UserProfile.findOne({ userId });
 
   if (!user) {
     return interaction.editReply("❌ You need a profile first!");
   }
 
-  const itemId = user.equipped[slot];
+  // Validate slot
+  const validSlots = ["weapon", "head", "chest", "hands", "feet", "accessory"];
+  if (!validSlots.includes(slotInput)) {
+    return interaction.editReply(
+      `❌ Invalid slot! Valid slots are: **${validSlots.join(", ")}**`
+    );
+  }
+
+  const itemId = user.equipped[slotInput];
   if (!itemId) {
-    return interaction.editReply(`❌ You don't have anything equipped in **${slot}**!`);
+    return interaction.editReply(`❌ You don't have anything equipped in **${slotInput}**!`);
   }
 
   const item = await Item.findOne({ itemId });
-  user.equipped[slot] = null;
+  user.equipped[slotInput] = null;
 
   await user.save();
 
   return interaction.editReply(
-    `✅ Unequipped **${item?.name || itemId}** from your **${slot}** slot.`
+    `✅ Unequipped **${item?.name || itemId}** from your **${slotInput}** slot.`
   );
 }
 
@@ -217,13 +230,30 @@ async function handleSell(interaction) {
   await interaction.deferReply();
 
   const userId = interaction.user.id;
-  const itemId = interaction.options.getString("item").toLowerCase();
+  const itemIdInput = interaction.options.getString("item");
+  const rarityInput = interaction.options.getString("rarity");
   const user = await UserProfile.findOne({ userId });
 
   if (!user) {
     return interaction.editReply("❌ You need a profile first!");
   }
 
+  // Check if user provided either item or rarity
+  if (!itemIdInput && !rarityInput) {
+    return interaction.editReply("❌ Please specify either an item ID or a rarity to sell!");
+  }
+
+  if (itemIdInput && rarityInput) {
+    return interaction.editReply("❌ Please specify either an item ID OR a rarity, not both!");
+  }
+
+  // Handle mass sell by rarity
+  if (rarityInput) {
+    return handleMassSellByRarity(interaction, user, rarityInput);
+  }
+
+  // Handle single item sell
+  const itemId = itemIdInput.toLowerCase();
   const invItem = user.inventory.find((i) => i.itemId === itemId);
   if (!invItem) {
     return interaction.editReply("❌ You don't have that item!");
@@ -234,11 +264,12 @@ async function handleSell(interaction) {
     return interaction.editReply("❌ That item cannot be sold!");
   }
 
-  // Unequip if equipped
-  for (const slot of Object.keys(user.equipped)) {
-    if (user.equipped[slot] === itemId) {
-      user.equipped[slot] = null;
-    }
+  // Check if item is equipped
+  const isEquipped = Object.values(user.equipped).includes(itemId);
+  if (isEquipped) {
+    return interaction.editReply(
+      `❌ You cannot sell **${item.name}** while it's equipped! Use \`/inv unequip\` first.`
+    );
   }
 
   const sellPrice = Math.floor(item.price * 0.5); // Sell for 50% of price
@@ -252,6 +283,49 @@ async function handleSell(interaction) {
 
   return interaction.editReply(
     `✅ Sold **${item.name}** for **$${sellPrice.toLocaleString()}**!`
+  );
+}
+
+async function handleMassSellByRarity(interaction, user, rarity) {
+  const allItems = await Item.find({});
+  
+  // Get all equipped item IDs
+  const equippedItemIds = new Set(Object.values(user.equipped).filter(Boolean));
+  
+  // Find all items of the specified rarity that are not equipped
+  const itemsToSell = [];
+  let totalValue = 0;
+  let totalCount = 0;
+  
+  for (const invItem of user.inventory) {
+    const item = allItems.find((i) => i.itemId === invItem.itemId);
+    if (item && item.rarity === rarity && item.price) {
+      // Skip if item is equipped
+      if (equippedItemIds.has(invItem.itemId)) {
+        continue;
+      }
+      
+      const sellPrice = Math.floor(item.price * 0.5) * invItem.quantity;
+      totalValue += sellPrice;
+      totalCount += invItem.quantity;
+      itemsToSell.push(invItem.itemId);
+    }
+  }
+  
+  if (itemsToSell.length === 0) {
+    return interaction.editReply(
+      `❌ You don't have any sellable **${rarity}** items in your inventory!`
+    );
+  }
+  
+  // Remove sold items from inventory
+  user.inventory = user.inventory.filter((i) => !itemsToSell.includes(i.itemId));
+  user.balance += totalValue;
+  
+  await user.save();
+  
+  return interaction.editReply(
+    `✅ Sold **${totalCount}** **${rarity}** item(s) for **$${totalValue.toLocaleString()}**!`
   );
 }
 
