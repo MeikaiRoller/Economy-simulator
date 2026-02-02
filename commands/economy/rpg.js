@@ -1312,6 +1312,11 @@ async function handleRaid(interaction) {
       const moneyPool = 1000000 / 4; // $250,000
       const totalDamageDealt = raidBoss.leaderboard.reduce((sum, e) => sum + e.damageDealt, 0);
 
+      let userReward = 0;
+      let userXP = 0;
+      let userItem = null;
+      let userPlacement = 0;
+
       for (let i = 0; i < raidBoss.participantsToday.length; i++) {
         const participant = raidBoss.participantsToday[i];
         const profile = await UserProfile.findOne({ userId: participant });
@@ -1353,6 +1358,14 @@ async function handleRaid(interaction) {
           }
           
           await profile.save();
+
+          // Store current user's rewards
+          if (participant === userId) {
+            userReward = reward;
+            userXP = Math.floor(raidBoss.maxHp / 4);
+            userItem = droppedItem;
+            userPlacement = placement;
+          }
         }
       }
 
@@ -1361,14 +1374,15 @@ async function handleRaid(interaction) {
         .map((entry, idx) => `${idx + 1}. **${entry.username}** - ${entry.damageDealt.toLocaleString()} dmg`)
         .join("\n") || "No participants yet";
 
+      const itemText = userItem ? `${userItem.emoji} ${userItem.name}` : "None";
       const embed = new EmbedBuilder()
         .setTitle("⏰ Raid Time Expired!")
         .setDescription(`The **${raidBoss.bossName}** has survived the day! All participants receive consolation rewards.`)
         .addFields(
           { name: "❤️ Boss Remaining HP", value: `${raidBoss.currentHp.toLocaleString()} / ${raidBoss.maxHp.toLocaleString()}`, inline: false },
           { name: "🏆 Top Damage Dealers", value: leaderboardText, inline: false },
-          { name: "💰 Consolation Reward", value: "$12,500 base + damage% of $250k pool", inline: false },
-          { name: "🎁 Item Drops", value: "Top 3 get guaranteed items, others have chances", inline: false },
+          { name: "💰 Your Rewards", value: `$${userReward.toLocaleString()}\n${userXP.toLocaleString()} XP\n${itemText}`, inline: true },
+          { name: "📊 Your Placement", value: `#${userPlacement}`, inline: true },
           { name: "⏰ Next Reset", value: "Tomorrow at midnight Toronto time", inline: false }
         )
         .setColor(0xff9900)
@@ -1430,27 +1444,39 @@ async function handleRaid(interaction) {
       damage = Math.floor(damage * (1 + critDMG / 100));
     }
 
-    // Apply damage to boss
-    raidBoss.currentHp = Math.max(0, raidBoss.currentHp - damage);
+    // Apply damage to boss using atomic operation
+    const damageUpdate = await RaidBoss.findByIdAndUpdate(
+      raidBoss._id,
+      {
+        $inc: { currentHp: -damage },
+        $push: { participantsToday: userId },
+      },
+      { new: true }
+    );
 
-    // Update leaderboard
+    // Update or add leaderboard entry atomically
     const existingEntry = raidBoss.leaderboard.find(e => e.userId === userId);
     if (existingEntry) {
-      existingEntry.damageDealt += damage;
+      // Entry exists, increment damage
+      await RaidBoss.updateOne(
+        { _id: raidBoss._id, "leaderboard.userId": userId },
+        { $inc: { "leaderboard.$.damageDealt": damage } }
+      );
     } else {
-      raidBoss.leaderboard.push({ userId, username: userName, damageDealt: damage });
+      // New entry, add to leaderboard
+      await RaidBoss.updateOne(
+        { _id: raidBoss._id },
+        { $push: { leaderboard: { userId, username: userName, damageDealt: damage } } }
+      );
     }
 
-    // Add to participants if not already
-    if (!raidBoss.participantsToday.includes(userId)) {
-      raidBoss.participantsToday.push(userId);
-    }
-
+    // Re-fetch the updated boss to check final state
+    raidBoss = await RaidBoss.findOne({});
+    
     // Sort leaderboard by damage
     raidBoss.leaderboard.sort((a, b) => b.damageDealt - a.damageDealt);
 
     const bossDefeated = raidBoss.currentHp <= 0;
-    await raidBoss.save();
 
     // Set cooldown
     let newCooldown = cooldown || new Cooldown({ userId, commandName: "raid" });
@@ -1526,6 +1552,14 @@ async function handleRaid(interaction) {
           }
           
           await profile.save();
+          
+          // If this is the current user, show their rewards
+          if (participant === userId) {
+            const itemName = droppedItem ? `${droppedItem.emoji} ${droppedItem.name}` : "None";
+            embed.addFields(
+              { name: "💰 Your Rewards", value: `$${reward.toLocaleString()}\n${raidBoss.maxHp.toLocaleString()} XP\n${itemName}`, inline: true }
+            );
+          }
         }
       }
 

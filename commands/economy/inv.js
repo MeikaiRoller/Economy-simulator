@@ -657,12 +657,88 @@ async function handleLoadout(interaction) {
 
   const level = user.level || 1;
 
-  // Base stats
+  // Base stats (no buffs)
   const baseAttack = 25 + (level * 2);
   const baseDefense = 12 + level;
   const baseHP = 250 + (level * 15);
+  const baseCritRate = 5;
+  const baseCritDMG = 50;
 
-  // Final stats
+  // Calculate item-only buffs (without user-level buffs)
+  let itemBufFs = {
+    attack: 0,
+    defense: 0,
+    hpPercent: 0,
+    attackFlat: 0,
+    defenseFlat: 0,
+    hpFlat: 0,
+    critChance: 0,
+    critDMG: 0,
+    energy: 0,
+    dodge: 0,
+    luck: 0,
+    damageBonus: 0,
+    counterChance: 0,
+    counterDamage: 0,
+    lifesteal: 0,
+    lifestealChance: 0,
+  };
+
+  if (user.equipped) {
+    const equippedItemIds = Object.values(user.equipped).filter(Boolean);
+    for (const itemId of equippedItemIds) {
+      const itemData = await Item.findOne({ itemId });
+      if (itemData) {
+        const itemLevel = itemData.level || 0;
+        let levelBonusPercent = 0;
+        for (let i = 1; i <= itemLevel; i++) {
+          if (i <= 5) levelBonusPercent += 2;
+          else if (i <= 10) levelBonusPercent += 3;
+          else levelBonusPercent += 4;
+        }
+        const levelMultiplier = 1 + (levelBonusPercent / 100);
+
+        if (itemData.mainStat?.type && itemData.mainStat?.value) {
+          const statType = itemData.mainStat.type;
+          const boostedValue = itemData.mainStat.value * levelMultiplier;
+          if (statType === 'attack') itemBufFs.attackFlat += boostedValue;
+          else if (statType === 'defense') itemBufFs.defenseFlat += boostedValue;
+          else if (statType === 'hp') itemBufFs.hpFlat += boostedValue;
+          else if (statType === 'critRate') itemBufFs.critChance += boostedValue;
+          else if (statType === 'critDMG') itemBufFs.critDMG += boostedValue;
+          else if (statType === 'energy') itemBufFs.energy += boostedValue;
+        }
+
+        if (itemData.subStats?.length) {
+          for (const subStat of itemData.subStats) {
+            const statType = subStat.type;
+            const boostedValue = subStat.value * levelMultiplier;
+            if (statType === 'attack') itemBufFs.attackFlat += boostedValue;
+            else if (statType === 'attack%') itemBufFs.attack += boostedValue / 100;
+            else if (statType === 'defense') itemBufFs.defenseFlat += boostedValue;
+            else if (statType === 'defense%') itemBufFs.defense += boostedValue / 100;
+            else if (statType === 'hp') itemBufFs.hpFlat += boostedValue;
+            else if (statType === 'hp%') itemBufFs.hpPercent += boostedValue / 100;
+            else if (statType === 'critRate') itemBufFs.critChance += boostedValue;
+            else if (statType === 'critDMG') itemBufFs.critDMG += boostedValue;
+            else if (statType === 'energy') itemBufFs.energy += boostedValue;
+            else if (statType === 'luck') itemBufFs.luck += boostedValue;
+          }
+        }
+      }
+    }
+  }
+
+  // Item stats (what gear contributes)
+  const itemAttack = Math.round(baseAttack * (itemBufFs.attack || 0) + (itemBufFs.attackFlat || 0));
+  const itemDefense = Math.round(baseDefense * (itemBufFs.defense || 0) + (itemBufFs.defenseFlat || 0));
+  const itemHP = Math.round(baseHP * (itemBufFs.hpPercent || 0) + (itemBufFs.hpFlat || 0));
+  const itemCritRate = Math.round(itemBufFs.critChance || 0);
+  const itemCritDMG = Math.round(itemBufFs.critDMG || 0);
+  const itemEnergy = Math.round(itemBufFs.energy || 0);
+  const itemDodge = Math.round(itemBufFs.dodge || 0);
+
+  // Final stats (combined)
   const finalAttack = Math.round(baseAttack * (1 + (buffs.attack || 0)) + (buffs.attackFlat || 0));
   const finalDefense = Math.round(baseDefense * (1 + (buffs.defense || 0)) + (buffs.defenseFlat || 0));
   const finalHP = Math.round(baseHP * (1 + (buffs.hpPercent || 0)) + (buffs.hpFlat || 0));
@@ -713,9 +789,46 @@ async function handleLoadout(interaction) {
 
   const setInfo = buffs.setInfo || {};
   const setLines = [];
-  if (setInfo.activeSetBonuses?.length) {
-    setLines.push(`📦 ${setInfo.activeSetBonuses.join("\n📦 ")}`);
+  
+  // Build set bonus descriptions with effects
+  if (user.equipped) {
+    const equippedItemIds = Object.values(user.equipped).filter(Boolean);
+    const setCounts = {};
+    
+    for (const itemId of equippedItemIds) {
+      const item = await Item.findOne({ itemId });
+      if (item?.setName) {
+        setCounts[item.setName] = (setCounts[item.setName] || 0) + 1;
+      }
+    }
+    
+    // Get set definitions
+    const SET_BONUSES = {
+      "Ethans Prowess": { "2": "10% ATK", "3": "15% ATK, 8% DEF", "6": "25% ATK, 15% DEF, 5% Crit Rate" },
+      "Olivias Fury": { "2": "10% ATK", "3": "15% ATK, 15% Proc Rate", "6": "25% ATK, 30% Proc Rate, 15% Damage Bonus" },
+      "Justins Clapping": { "2": "15 Energy", "3": "25 Energy, 5% Crit Rate", "6": "50 Energy, 12% Crit Rate, 25% Burst Damage" },
+      "Lilahs Cold Heart": { "2": "8% Crit Rate", "3": "12% Crit Rate, 15% Crit DMG", "6": "20% Crit Rate, 35% Crit DMG, 15% Freeze Chance" },
+      "Hasagi": { "2": "8% Cooldown Reduction", "3": "15% Cooldown Reduction, 6% Dodge", "6": "25% Cooldown Reduction, 15% Dodge, 20% Swirl Damage" },
+      "Maries Zhongli Bodypillow": { "2": "15% DEF", "3": "25% DEF, 10% HP", "6": "40% DEF, 20% HP, 10% Counter Chance" },
+      "Andys Soraka": { "2": "15% HP", "3": "25% HP, 18% Healing", "6": "40% HP, 30% Healing, 15% Lifesteal Chance" }
+    };
+    
+    Object.entries(setCounts).forEach(([setName, count]) => {
+      const setBonusDesc = SET_BONUSES[setName];
+      if (!setBonusDesc) return;
+      
+      if (count >= 2 && setBonusDesc["2"]) {
+        setLines.push(`📦 **${setName} (2pc):** ${setBonusDesc["2"]}`);
+      }
+      if (count >= 3 && setBonusDesc["3"]) {
+        setLines.push(`📦 **${setName} (3pc):** ${setBonusDesc["3"]}`);
+      }
+      if (count >= 6 && setBonusDesc["6"]) {
+        setLines.push(`🌟 **${setName} (6pc - FULL SET):** ${setBonusDesc["6"]}`);
+      }
+    });
   }
+  
   if (setInfo.dualMastery?.name) {
     setLines.push(`🔥⚡ **${setInfo.dualMastery.name}**`);
   }
@@ -734,17 +847,18 @@ async function handleLoadout(interaction) {
 
   const embed = new EmbedBuilder()
     .setTitle(`🎒 Loadout — ${interaction.user.username}`)
-    .setDescription("Combat-focused view of your equipped gear and stat breakdown.")
+    .setDescription("Breakdown of your base stats, gear bonuses, and final combat stats.")
     .addFields(
       { name: "🛡️ Equipped", value: equippedLines.join("\n"), inline: false },
       { name: "📦 Set Bonuses", value: setLines.length ? setLines.join("\n") : "None", inline: false },
       { name: "✨ Resonance / Reactions", value: resonanceLines.length ? resonanceLines.join("\n") : "None", inline: false },
-      { name: "⚙️ Base Stats", value: `Level: ${level}\nHP: ${baseHP}\nATK: ${baseAttack}\nDEF: ${baseDefense}`, inline: true },
-      { name: "⚔️ Final Stats", value: `HP: ${finalHP}\nATK: ${finalAttack}\nDEF: ${finalDefense}\nCrit Rate: ${finalCritRate}%\nCrit DMG: ${finalCritDMG}%\nDamage Bonus: +${finalDamageBonus}%\nEnergy: ${finalEnergy}`, inline: true },
-      { name: "🛡️ Defensive", value: `Dodge: ${finalDodge}%\nCounter Chance: ${finalCounterChance}%\nCounter Damage: +${finalCounterDamage}%\nLifesteal: +${finalLifesteal}%\nLifesteal Chance: ${finalLifestealChance}%`, inline: true }
+      { name: "📊 Base Stats (Lvl " + level + ")", value: `HP: ${baseHP}\nATK: ${baseAttack}\nDEF: ${baseDefense}\nCrit Rate: ${baseCritRate}%\nCrit DMG: ${baseCritDMG}%`, inline: true },
+      { name: "⚙️ Item Stats (Gear Only)", value: `HP: +${itemHP}\nATK: +${itemAttack}\nDEF: +${itemDefense}\nCrit Rate: +${itemCritRate}%\nCrit DMG: +${itemCritDMG}%\nEnergy: +${itemEnergy}`, inline: true },
+      { name: "⚔️ Combat Ready Stats", value: `HP: ${finalHP}\nATK: ${finalAttack}\nDEF: ${finalDefense}\nCrit Rate: ${finalCritRate}%\nCrit DMG: ${finalCritDMG}%\nDamage Bonus: +${finalDamageBonus}%\nEnergy: ${finalEnergy}`, inline: true },
+      { name: "🛡️ Defensive Abilities", value: `Dodge: ${finalDodge}%\nCounter Chance: ${finalCounterChance}%\nCounter Damage: +${finalCounterDamage}%\nLifesteal: +${finalLifesteal}%\nLifesteal Chance: ${finalLifestealChance}%`, inline: false }
     )
     .setColor(0x3498db)
-    .setFooter({ text: "Stats shown = base + gear + set bonuses" })
+    .setFooter({ text: "Combat Ready = Base + Item Stats" })
     .setTimestamp();
 
   return interaction.editReply({ embeds: [embed] });
