@@ -1,0 +1,205 @@
+========================================
+EQUIPMENT SETS
+========================================
+
+Ethans Prowess (No Element)
+- 2 Pieces: +10% Attack
+- 3 Pieces: +15% Attack, +8% Defense
+- 6 Pieces: +25% Attack, +15% Defense, +5% Crit Rate
+
+Olivias Fury (Pyro)
+- 2 Pieces: +10% Attack
+- 3 Pieces: +15% Attack, +15% Proc Rate
+- 6 Pieces: +25% Attack, +30% Proc Rate, +15% Damage Bonus
+
+Justins Clapping (Electro)
+- 2 Pieces: +15 Energy
+- 3 Pieces: +25 Energy, +5% Crit Rate
+- 6 Pieces: +50 Energy, +12% Crit Rate, +25% Burst Damage
+
+Lilahs Cold Heart (Cryo)
+- 2 Pieces: +8% Crit Rate
+- 3 Pieces: +12% Crit Rate, +15% Crit Damage
+- 6 Pieces: +20% Crit Rate, +35% Crit Damage, 15% Freeze Chance
+
+Hasagi (Anemo)
+- 2 Pieces: +8% Cooldown Reduction
+- 3 Pieces: +15% Cooldown Reduction, +6% Dodge
+- 6 Pieces: +25% Cooldown Reduction, +15% Dodge, +20% Swirl Damage
+
+Maries Zhongli Bodypillow (Geo)
+- 2 Pieces: +15% Defense
+- 3 Pieces: +25% Defense, +10% HP
+- 6 Pieces: +40% Defense, +20% HP, 10% Counter Chance
+
+Andys Soraka (Hydro)
+- 2 Pieces: +15% HP
+- 3 Pieces: +25% HP, +18% Healing
+- 6 Pieces: +40% HP, +30% Healing, 15% Lifesteal Chance
+
+========================================
+ELEMENT RESONANCE (6 Piece Full Set)
+========================================
+
+Pyro Resonance: Fervent Flames
+- +9% Damage Bonus
+- +12% Proc Rate
+
+Electro Resonance: High Voltage
+- +12% Crit Damage
+- +18 Energy Regen
+
+Cryo Resonance: Shattering Ice
+- +6% Crit Rate
+- +12% Crit Damage
+
+Anemo Resonance: Impetuous Winds
+- +6% Dodge
+- +9% Swirl Damage
+
+Geo Resonance: Enduring Rock
+- +9% Defense
+- +18% Counter Damage
+
+Hydro Resonance: Soothing Water
+- +9% HP
+- +6% Lifesteal
+
+========================================
+ELEMENTAL REACTIONS (3+3 Mix)
+========================================
+
+ACTIVE REACTIONS:
+
+Vaporize (Pyro + Hydro)
+- Effect: Next attack deals 1.5x damage
+- Proc Chance: 35%
+
+Melt (Pyro + Cryo)
+- Effect: Next attack deals 2.0x damage
+- Proc Chance: 25%
+
+Overload (Pyro + Electro)
+- Effect: Bonus 75 AoE damage + 20% stun chance
+- Proc Chance: 30%
+
+Freeze (Hydro + Cryo)
+- Effect: 25% chance to stun enemy for 1 turn
+- Proc Chance: 25%
+
+Superconduct (Electro + Cryo)
+- Effect: Reduce enemy defense by 40% for 3 turns
+- Proc Chance: 30%
+
+Pyro Swirl (Anemo + Pyro)
+- Effect: 15% damage reflected to attacker
+- Proc Chance: 25%
+
+Hydro Swirl (Anemo + Hydro)
+- Effect: 15% damage reflected + heal 8% of damage
+- Proc Chance: 25%
+
+Cryo Swirl (Anemo + Cryo)
+- Effect: 15% damage reflected + slow (reduced dodge)
+- Proc Chance: 25%
+
+FUTURE REACTIONS (Not yet active):
+
+Electro-Charged (Hydro + Electro) - Patch 1.1
+- Effect: Continuous 20 damage over time for 3 turns
+- Proc Chance: 30%
+
+Electro Swirl (Anemo + Electro) - Patch 1.1
+- Effect: 15% damage reflected + energy boost
+- Proc Chance: 25%
+
+Geo Swirl (Anemo + Geo) - Patch 1.2
+- Effect: 15% damage reflected + shield (defense boost)
+- Proc Chance: 25%
+
+Crystallize (Pyro) (Geo + Pyro) - Patch 1.2
+- Effect: Shield absorbs damage + 15% attack boost
+- Proc Chance: 25%
+
+Crystallize (Hydro) (Geo + Hydro) - Patch 1.2
+- Effect: Shield absorbs damage + 15% HP boost
+- Proc Chance: 25%
+
+Crystallize (Electro) (Geo + Electro) - Patch 1.2
+- Effect: Shield absorbs damage + 15 energy boost
+- Proc Chance: 25%
+
+Crystallize (Cryo) (Geo + Cryo) - Patch 1.2
+- Effect: Shield absorbs damage + 8% crit rate boost
+- Proc Chance: 25%
+
+========================================
+DUAL ELEMENT MASTERY (3+3 Bonuses)
+========================================
+
+Overload Mastery (Pyro + Electro)
+- +12% Attack, +5% Crit Rate, +15 Energy
+
+Melt Mastery (Pyro + Cryo)
+- +15% Attack, +20% Crit Damage, +10% Damage Bonus
+
+Vaporize Mastery (Pyro + Hydro)
+- +15% Attack, +10% HP, +8% Damage Bonus
+
+Pyro Swirl Mastery (Pyro + Anemo)
+- +12% Attack, +8% Dodge, +10% Cooldown Reduction
+
+Pyro Crystallize Mastery (Pyro + Geo)
+- +10% Attack, +12% Defense, +8% Counter Chance
+
+Superconduct Mastery (Electro + Cryo)
+- +10% Attack, +8% Crit Rate, +20 Energy
+
+Electro-Charged Mastery (Electro + Hydro)
+- +15% HP, +25 Energy, +12% Healing
+
+Electro Swirl Mastery (Electro + Anemo)
+- +30 Energy, +10% Dodge, +12% Cooldown Reduction
+
+Electro Crystallize Mastery (Electro + Geo)
+- +15% Defense, +20 Energy, +8% Counter Chance
+
+Freeze Mastery (Cryo + Hydro)
+- +10% Crit Rate, +25% Crit Damage, +10% HP
+
+Cryo Swirl Mastery (Cryo + Anemo)
+- +8% Crit Rate, +20% Crit Damage, +8% Dodge
+
+Cryo Crystallize Mastery (Cryo + Geo)
+- +8% Crit Rate, +15% Defense, +10% HP
+
+Hydro Swirl Mastery (Hydro + Anemo)
+- +15% HP, +15% Healing, +8% Dodge
+
+Hydro Crystallize Mastery (Hydro + Geo)
+- +20% HP, +15% Defense, +8% Counter Chance
+
+Geo Swirl Mastery (Anemo + Geo)
+- +15% Defense, +10% Dodge, +10% Counter Chance
+
+========================================
+ADAPTIVE RESONANCE (3+3 Builds)
+========================================
+
+Critical Strike Master (50+ Crit Rate)
+- +35% Crit Damage
+
+Fortified Vitality (1200+ HP)
+- +12% Lifesteal, +8% HP
+
+Evasive Striker (10+ Dodge)
+- +35% Counter Damage, +10% Attack
+
+Overwhelming Force (300+ Attack)
+- +12% Damage Bonus, +8% Attack
+
+Impenetrable Wall (180+ Defense)
+- +12% Defense, +8% Counter Chance
+
+VERSATILE BUILD (3+ Adaptive Triggers)
+- +5% Attack, +5% Defense, +5% HP
