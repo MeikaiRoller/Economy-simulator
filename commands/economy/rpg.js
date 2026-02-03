@@ -1311,25 +1311,28 @@ async function handleRaid(interaction) {
       return interaction.editReply({ embeds: [embed] });
     }
 
-    // Get or create raid boss
-    let raidBoss = await RaidBoss.findOne({});
-    if (!raidBoss) {
-      const bossStats = await calculateBossStats();
-      raidBoss = new RaidBoss({
-        bossName: "Le Gromp",
-        bossDescription: "An ancient amphibian guardian that grows stronger with each challenger",
-        currentHp: bossStats.maxHp,
-        maxHp: bossStats.maxHp,
-        attack: bossStats.attack,
-        defense: bossStats.defense,
-        level: bossStats.level,
-        leaderboard: [],
-        participantsThisCycle: [],
-        cycleStartTime: new Date(),
-        bossDefeatedTime: null
-      });
-      await raidBoss.save();
-    }
+    // Get or create raid boss atomically
+    const bossStats = await calculateBossStats();
+    const result = await RaidBoss.findOneAndUpdate(
+      {}, // Find any raid boss
+      {
+        $setOnInsert: {
+          bossName: "Le Gromp",
+          bossDescription: "An ancient amphibian guardian that grows stronger with each challenger",
+          currentHp: bossStats.maxHp,
+          maxHp: bossStats.maxHp,
+          attack: bossStats.attack,
+          defense: bossStats.defense,
+          level: bossStats.level,
+          leaderboard: [],
+          participantsThisCycle: [],
+          cycleStartTime: new Date(),
+          bossDefeatedTime: null
+        }
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    let raidBoss = result;
 
     // Check if boss is in downtime (defeated less than 1 hour ago)
     const oneHourInMs = 60 * 60 * 1000;
@@ -1359,18 +1362,37 @@ async function handleRaid(interaction) {
 
         return interaction.editReply({ embeds: [embed] });
       } else {
-        // Downtime expired - spawn new boss
+        // Downtime expired - spawn new boss atomically (only first player triggers this)
         const newBossStats = await calculateBossStats();
-        raidBoss.currentHp = newBossStats.maxHp;
-        raidBoss.maxHp = newBossStats.maxHp;
-        raidBoss.attack = newBossStats.attack;
-        raidBoss.defense = newBossStats.defense;
-        raidBoss.level = newBossStats.level;
-        raidBoss.leaderboard = [];
-        raidBoss.participantsThisCycle = [];
-        raidBoss.cycleStartTime = new Date();
-        raidBoss.bossDefeatedTime = null;
-        await raidBoss.save();
+        const updatedBoss = await RaidBoss.findOneAndUpdate(
+          {
+            _id: raidBoss._id,
+            bossDefeatedTime: { $ne: null }, // Only update if still in defeated state
+            bossDefeatedTime: { $lt: new Date(now - oneHourInMs) } // Only if downtime actually expired
+          },
+          {
+            $set: {
+              currentHp: newBossStats.maxHp,
+              maxHp: newBossStats.maxHp,
+              attack: newBossStats.attack,
+              defense: newBossStats.defense,
+              level: newBossStats.level,
+              leaderboard: [],
+              participantsThisCycle: [],
+              cycleStartTime: new Date(),
+              bossDefeatedTime: null
+            }
+          },
+          { new: true }
+        );
+        
+        // If update succeeded, we spawned the boss; otherwise another player did
+        if (updatedBoss) {
+          raidBoss = updatedBoss;
+        } else {
+          // Another player just spawned it, re-fetch
+          raidBoss = await RaidBoss.findOne({});
+        }
       }
     }
 
@@ -1387,35 +1409,64 @@ async function handleRaid(interaction) {
     const playerDefeated = battleResult.playerDefeated;
     const bossDefeated = battleResult.bossDefeated;
 
-    // Apply damage to boss
+    // Apply damage to boss atomically (prevents race conditions)
     const damageUpdate = await RaidBoss.findByIdAndUpdate(
       raidBoss._id,
       {
         $inc: { currentHp: -totalDamageDealt },
-        $push: { participantsThisCycle: userId },
+        $addToSet: { participantsThisCycle: userId }, // Prevents duplicate participants
       },
       { new: true }
     );
 
-    // Update or add leaderboard entry
-    const existingEntry = raidBoss.leaderboard.find(e => e.userId === userId);
-    if (existingEntry) {
-      await RaidBoss.updateOne(
-        { _id: raidBoss._id, "leaderboard.userId": userId },
-        { $inc: { "leaderboard.$.damageDealt": totalDamageDealt } }
-      );
-    } else {
-      await RaidBoss.updateOne(
-        { _id: raidBoss._id },
-        { $push: { leaderboard: { userId, username: userName, damageDealt: totalDamageDealt } } }
-      );
-    }
+    // Update leaderboard atomically - handles both new and existing entries in one operation
+    // This prevents race conditions by using MongoDB's atomic array update operators
+    await RaidBoss.updateOne(
+      { _id: raidBoss._id },
+      [
+        {
+          $set: {
+            leaderboard: {
+              $cond: {
+                if: { $in: [userId, "$leaderboard.userId"] },
+                // User exists - increment their damage
+                then: {
+                  $map: {
+                    input: "$leaderboard",
+                    as: "entry",
+                    in: {
+                      $cond: {
+                        if: { $eq: ["$$entry.userId", userId] },
+                        then: {
+                          userId: "$$entry.userId",
+                          username: userName, // Update username
+                          damageDealt: { $add: ["$$entry.damageDealt", totalDamageDealt] }
+                        },
+                        else: "$$entry"
+                      }
+                    }
+                  }
+                },
+                // User doesn't exist - add them to the array
+                else: {
+                  $concatArrays: [
+                    "$leaderboard",
+                    [{ userId, username: userName, damageDealt: totalDamageDealt }]
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ]
+    );
 
-    // Re-fetch and check if boss is defeated
+    // Re-fetch boss to check if it's defeated (use the atomically updated HP)
     raidBoss = await RaidBoss.findOne({});
     raidBoss.leaderboard.sort((a, b) => b.damageDealt - a.damageDealt);
     
-    const isBossDefeated = raidBoss.currentHp <= 0;
+    // Check if boss was defeated AND we're the first to mark it (atomic check-and-set)
+    const isBossDefeated = raidBoss.currentHp <= 0 && !raidBoss.bossDefeatedTime;
 
     // Set cooldown - Mudae style (resets at top of next hour)
     const nextHour = new Date(now);
@@ -1459,11 +1510,29 @@ async function handleRaid(interaction) {
         { name: "🏆 Top 5 Damage Dealers", value: getLeaderboardText(raidBoss.leaderboard), inline: false }
       );
 
-      // Mark boss as defeated
-      raidBoss.bossDefeatedTime = new Date();
-      await raidBoss.save();
+      // Mark boss as defeated atomically - only succeeds for ONE player
+      const defeatUpdate = await RaidBoss.findOneAndUpdate(
+        { 
+          _id: raidBoss._id,
+          currentHp: { $lte: 0 },
+          bossDefeatedTime: null // Only if not already marked defeated
+        },
+        { 
+          $set: { bossDefeatedTime: new Date() }
+        },
+        { new: true }
+      );
 
-      // Reward all participants
+      // Only distribute rewards if WE were the one who marked it defeated
+      if (!defeatUpdate) {
+        // Another player already marked it defeated and is distributing rewards
+        embed.addFields(
+          { name: "⚡ Victory!", value: "Boss defeated! Rewards are being distributed...", inline: false }
+        );
+        return interaction.editReply({ embeds: [embed] });
+      }
+
+      // WE marked it defeated, so WE distribute rewards to all participants
       for (let i = 0; i < raidBoss.participantsThisCycle.length; i++) {
         const participant = raidBoss.participantsThisCycle[i];
         const profile = await UserProfile.findOne({ userId: participant });
@@ -1475,10 +1544,20 @@ async function handleRaid(interaction) {
           // Base reward + damage% of money pool
           const poolReward = Math.floor(moneyPool * damagePercent);
           const reward = baseReward + poolReward;
-          profile.balance += reward;
           
-          // XP = boss max HP
-          profile.xp += raidBoss.maxHp;
+          // Update balance and XP atomically
+          await UserProfile.updateOne(
+            { userId: participant },
+            { 
+              $inc: { 
+                balance: reward,
+                xp: raidBoss.maxHp
+              }
+            }
+          );
+          
+          // Re-fetch profile for inventory update
+          const updatedProfile = await UserProfile.findOne({ userId: participant });
           
           // Item drops (victory)
           let droppedItem = null;
@@ -1500,16 +1579,21 @@ async function handleRaid(interaction) {
             else if (roll < 0.75) droppedItem = await generateItem('Uncommon');
           }
           
-          if (droppedItem) {
-            const existingItem = profile.inventory.find(i => i.itemId === droppedItem.itemId);
+          if (droppedItem && updatedProfile) {
+            // Update inventory atomically
+            const existingItem = updatedProfile.inventory.find(i => i.itemId === droppedItem.itemId);
             if (existingItem) {
-              existingItem.quantity++;
+              await UserProfile.updateOne(
+                { userId: participant, "inventory.itemId": droppedItem.itemId },
+                { $inc: { "inventory.$.quantity": 1 } }
+              );
             } else {
-              profile.inventory.push({ itemId: droppedItem.itemId, quantity: 1 });
+              await UserProfile.updateOne(
+                { userId: participant },
+                { $push: { inventory: { itemId: droppedItem.itemId, quantity: 1 } } }
+              );
             }
           }
-          
-          await profile.save();
           
           // If this is the current user, show their rewards
           if (participant === userId) {
