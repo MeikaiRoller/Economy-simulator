@@ -1209,45 +1209,168 @@ async function handleRaid(interaction) {
   const userName = interaction.user.username;
 
   try {
-    // Check 2-hour cooldown (Mudae style - refreshes every 2 hours regardless of when used)
-    const now = Date.now();
-    const twoHours = 2 * 60 * 60 * 1000;
+    // Check 1-hour cooldown
+    const oneHour = 60 * 60 * 1000;
     const cooldown = await Cooldown.findOne({ userId, commandName: "raid" });
 
-    if (cooldown) {
-      const timeSinceLastAttack = now - cooldown.endsAt.getTime();
-      // If less than 2 hours have passed, they're on cooldown
-      if (timeSinceLastAttack < 0) {
-        const timeRemaining = Math.ceil(Math.abs(timeSinceLastAttack) / 1000 / 60); // minutes
-        
-        // Fetch raid boss to show progress while on cooldown
-        let raidBoss = await RaidBoss.findOne({});
-        if (!raidBoss) {
-          return interaction.editReply({
-            content: `⏳ You're recovering from your last raid! Try again in **${timeRemaining} minutes**.`,
-          });
-        }
+    if (cooldown && Date.now() < cooldown.endsAt) {
+      const timeRemaining = Math.ceil((cooldown.endsAt - Date.now()) / 1000 / 60); // minutes
+      
+      // Show boss status while on cooldown
+      let raidBoss = await RaidBoss.findOne({});
+      if (!raidBoss) {
+        return interaction.editReply({
+          content: `⏳ You're recovering from your last raid! Try again in **${timeRemaining} minutes**.`,
+        });
+      }
 
+      // Check if in downtime
+      if (raidBoss.bossDefeatedTime) {
+        const timeSinceDefeat = Date.now() - raidBoss.bossDefeatedTime.getTime();
+        if (timeSinceDefeat < oneHour) {
+          const timeUntilNextBoss = Math.ceil((oneHour - timeSinceDefeat) / 1000 / 60);
+          
+          const leaderboardText = raidBoss.leaderboard
+            .slice(0, 5)
+            .map((entry, idx) => `${idx + 1}. **${entry.username}** - ${entry.damageDealt.toLocaleString()} dmg`)
+            .join("\n") || "No participants";
+
+          const embed = new EmbedBuilder()
+            .setTitle("🎉 Raid Cycle Complete!")
+            .setDescription(`The **${raidBoss.bossName}** has been defeated!`)
+            .addFields(
+              { name: "🏆 Top Damage Dealers", value: leaderboardText, inline: false },
+              { name: "⏰ Next Boss Spawns In", value: `**${timeUntilNextBoss}** minute${timeUntilNextBoss !== 1 ? 's' : ''}`, inline: false },
+              { name: "⏳ Your Cooldown", value: `**${timeRemaining}** minute${timeRemaining !== 1 ? 's' : ''}`, inline: false }
+            )
+            .setColor(0xffd700)
+            .setTimestamp();
+
+          // Check if user participated and show their rewards
+          const userEntry = raidBoss.leaderboard.find(e => e.userId === userId);
+          if (userEntry) {
+            const totalCycleDamage = raidBoss.leaderboard.reduce((sum, e) => sum + e.damageDealt, 0);
+            const damagePercent = userEntry.damageDealt / totalCycleDamage;
+            const placement = raidBoss.leaderboard.findIndex(e => e.userId === userId) + 1;
+            
+            const baseReward = 50000;
+            const moneyPool = raidBoss.maxHp * 10; // Scales with boss difficulty
+            const poolReward = Math.floor(moneyPool * damagePercent);
+            const reward = baseReward + poolReward;
+            
+            const xpEarned = raidBoss.maxHp;
+            
+            // Determine item rarity received
+            let itemRarity = "None";
+            if (placement === 1) {
+              itemRarity = "Legendary";
+            } else if (placement === 2) {
+              itemRarity = "Legendary/Epic";
+            } else if (placement === 3) {
+              itemRarity = "Epic";
+            } else if (placement <= 5) {
+              itemRarity = "Epic/Rare";
+            } else if (placement <= 10) {
+              itemRarity = "Rare";
+            } else {
+              itemRarity = "Rare/Uncommon";
+            }
+
+            embed.addFields(
+              { name: "💰 Your Rewards", value: `Placement: #${placement}\nMoney: $${reward.toLocaleString()}\nXP: ${xpEarned.toLocaleString()}\nItem: ${itemRarity}`, inline: false }
+            );
+          } else {
+            embed.addFields(
+              { name: "💰 Your Rewards", value: "You did not participate in this cycle.", inline: false }
+            );
+          }
+
+          return interaction.editReply({ embeds: [embed] });
+        }
+      }
+
+      const leaderboardText = raidBoss.leaderboard
+        .slice(0, 3)
+        .map((entry, idx) => `${idx + 1}. **${entry.username}** - ${entry.damageDealt.toLocaleString()} dmg`)
+        .join("\n") || "No participants yet";
+
+      const embed = new EmbedBuilder()
+        .setTitle(`🐉 ${raidBoss.bossName}`)
+        .setDescription(raidBoss.bossDescription)
+        .addFields(
+          { name: "❤️ Boss Health", value: `${raidBoss.currentHp.toLocaleString()} / ${raidBoss.maxHp.toLocaleString()}`, inline: true },
+          { name: "📊 Progress", value: `${((raidBoss.maxHp - raidBoss.currentHp) / raidBoss.maxHp * 100).toFixed(1)}% damaged`, inline: true },
+          { name: "📊 Health Bar", value: getHealthBar(raidBoss.currentHp, raidBoss.maxHp), inline: false },
+          { name: "🏆 Top Damage Dealers", value: leaderboardText, inline: false },
+          { name: "👥 Total Participants", value: raidBoss.participantsThisCycle.length.toString(), inline: true },
+          { name: "⏳ Your Cooldown", value: `**${timeRemaining}** minute${timeRemaining !== 1 ? 's' : ''}`, inline: true }
+        )
+        .setColor(0x808080)
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [embed] });
+    }
+
+    // Get or create raid boss
+    let raidBoss = await RaidBoss.findOne({});
+    if (!raidBoss) {
+      const bossStats = await calculateBossStats();
+      raidBoss = new RaidBoss({
+        bossName: "Le Gromp",
+        bossDescription: "An ancient amphibian guardian that grows stronger with each challenger",
+        currentHp: bossStats.maxHp,
+        maxHp: bossStats.maxHp,
+        attack: bossStats.attack,
+        defense: bossStats.defense,
+        level: bossStats.level,
+        leaderboard: [],
+        participantsThisCycle: [],
+        cycleStartTime: new Date(),
+        bossDefeatedTime: null
+      });
+      await raidBoss.save();
+    }
+
+    // Check if boss is in downtime (defeated less than 1 hour ago)
+    const oneHourInMs = 60 * 60 * 1000;
+    const now = new Date();
+    
+    if (raidBoss.bossDefeatedTime) {
+      const timeSinceDefeat = now - raidBoss.bossDefeatedTime;
+      
+      if (timeSinceDefeat < oneHourInMs) {
+        // Still in downtime - show rewards
+        const timeUntilNextBoss = Math.ceil((oneHourInMs - timeSinceDefeat) / 1000 / 60); // minutes
+        
         const leaderboardText = raidBoss.leaderboard
-          .slice(0, 3)
+          .slice(0, 5)
           .map((entry, idx) => `${idx + 1}. **${entry.username}** - ${entry.damageDealt.toLocaleString()} dmg`)
-          .join("\n") || "No participants yet";
+          .join("\n") || "No participants";
 
         const embed = new EmbedBuilder()
-          .setTitle(`🐉 ${raidBoss.bossName}`)
-          .setDescription(raidBoss.bossDescription)
+          .setTitle("🎉 Raid Cycle Complete!")
+          .setDescription(`The **${raidBoss.bossName}** has been defeated!`)
           .addFields(
-            { name: "❤️ Boss Health", value: `${raidBoss.currentHp.toLocaleString()} / ${raidBoss.maxHp.toLocaleString()}`, inline: true },
-            { name: "📊 Progress", value: `${((raidBoss.maxHp - raidBoss.currentHp) / raidBoss.maxHp * 100).toFixed(1)}% damaged`, inline: true },
-            { name: "📊 Health Bar", value: getHealthBar(raidBoss.currentHp, raidBoss.maxHp), inline: false },
             { name: "🏆 Top Damage Dealers", value: leaderboardText, inline: false },
-            { name: "👥 Total Participants", value: raidBoss.participantsToday.length.toString(), inline: true },
-            { name: "⏳ Your Cooldown", value: `Come back in **${timeRemaining} minute${timeRemaining !== 1 ? 's' : ''}**`, inline: true }
+            { name: "⏰ Next Boss Spawns In", value: `**${timeUntilNextBoss}** minute${timeUntilNextBoss !== 1 ? 's' : ''}`, inline: false }
           )
-          .setColor(0x808080)
+          .setColor(0xffd700)
           .setTimestamp();
 
         return interaction.editReply({ embeds: [embed] });
+      } else {
+        // Downtime expired - spawn new boss
+        const newBossStats = await calculateBossStats();
+        raidBoss.currentHp = newBossStats.maxHp;
+        raidBoss.maxHp = newBossStats.maxHp;
+        raidBoss.attack = newBossStats.attack;
+        raidBoss.defense = newBossStats.defense;
+        raidBoss.level = newBossStats.level;
+        raidBoss.leaderboard = [];
+        raidBoss.participantsThisCycle = [];
+        raidBoss.cycleStartTime = new Date();
+        raidBoss.bossDefeatedTime = null;
+        await raidBoss.save();
       }
     }
 
@@ -1257,27 +1380,75 @@ async function handleRaid(interaction) {
       return interaction.editReply({ content: "❌ You don't have a profile yet! Use `/profile` first." });
     }
 
-    // Get or create raid boss
-    let raidBoss = await RaidBoss.findOne({});
-    if (!raidBoss) {
-      raidBoss = new RaidBoss({
-        bossName: "The Legendary Le Gromp",
-        bossDescription: "An ancient amphibian guardian that grows stronger with each challenger",
-        currentHp: 10000,
-        maxHp: 10000,
-        attack: 50,
-        defense: 30,
-        level: 1,
-        leaderboard: [],
-        participantsToday: [],
-        lastResetTime: new Date(),
-      });
+    // Simulate raid battle
+    const battleResult = await simulateRaidBattle(userProfile, raidBoss, interaction.user);
+    
+    let totalDamageDealt = battleResult.totalPlayerDamage;
+    const playerDefeated = battleResult.playerDefeated;
+    const bossDefeated = battleResult.bossDefeated;
+
+    // Apply damage to boss
+    const damageUpdate = await RaidBoss.findByIdAndUpdate(
+      raidBoss._id,
+      {
+        $inc: { currentHp: -totalDamageDealt },
+        $push: { participantsThisCycle: userId },
+      },
+      { new: true }
+    );
+
+    // Update or add leaderboard entry
+    const existingEntry = raidBoss.leaderboard.find(e => e.userId === userId);
+    if (existingEntry) {
+      await RaidBoss.updateOne(
+        { _id: raidBoss._id, "leaderboard.userId": userId },
+        { $inc: { "leaderboard.$.damageDealt": totalDamageDealt } }
+      );
+    } else {
+      await RaidBoss.updateOne(
+        { _id: raidBoss._id },
+        { $push: { leaderboard: { userId, username: userName, damageDealt: totalDamageDealt } } }
+      );
     }
 
-    // Check if boss should reset (midnight Toronto UTC-5)
-    const currentTime = new Date();
-    const torontoOffset = 5 * 60 * 60 * 1000; // 5 hours in milliseconds
-    const torontoTime = new Date(currentTime.getTime() - torontoOffset);
+    // Re-fetch and check if boss is defeated
+    raidBoss = await RaidBoss.findOne({});
+    raidBoss.leaderboard.sort((a, b) => b.damageDealt - a.damageDealt);
+    
+    const isBossDefeated = raidBoss.currentHp <= 0;
+
+    // Set cooldown - Mudae style (resets at top of next hour)
+    const now = new Date();
+    const nextHour = new Date(now);
+    nextHour.setHours(nextHour.getHours() + 1, 0, 0, 0); // Next hour at :00
+    
+    let newCooldown = cooldown || new Cooldown({ userId, commandName: "raid" });
+    newCooldown.endsAt = nextHour;
+    await newCooldown.save();
+
+    // Build response embed
+    const embed = new EmbedBuilder()
+      .setTitle(`🐉 ${raidBoss.bossName}`)
+      .setDescription(raidBoss.bossDescription)
+      .addFields(
+        { name: "⚔️ Battle Summary", value: battleResult.combatLog.slice(0, 1024), inline: false },
+        { name: "❤️ Boss Health", value: `${raidBoss.currentHp.toLocaleString()} / ${raidBoss.maxHp.toLocaleString()}`, inline: true },
+        { name: "📊 Health Bar", value: getHealthBar(raidBoss.currentHp, raidBoss.maxHp), inline: false }
+      );
+
+    if (playerDefeated) {
+      embed.setColor(0xff0000);
+      embed.addFields(
+        { name: "💀 You were defeated!", value: `Your battle ended after taking too much damage.`, inline: false }
+      );
+    } else {
+      embed.setColor(0xffaa00);
+      embed.addFields(
+        { name: "⚔️ You Survived!", value: `Your battle has ended. You dealt **${totalDamageDealt.toLocaleString()}** damage!`, inline: false }
+      );
+    }
+
+    if (isBossDefeated) {
     
     const lastResetTime = new Date(raidBoss.lastResetTime);
     const torontoLastResetTime = new Date(lastResetTime.getTime() - torontoOffset);
@@ -1429,32 +1600,18 @@ async function handleRaid(interaction) {
       return interaction.editReply({ embeds: [embed] });
     }
 
-    // Calculate player stats for damage
-    const playerBuffs = await calculateActiveBuffs(userProfile);
-    const playerAttack = Math.floor((25 + userProfile.level * 2 + (playerBuffs.attackFlat || 0)) * (1 + playerBuffs.attack));
-    const playerDefense = Math.floor((12 + userProfile.level + (playerBuffs.defenseFlat || 0)) * (1 + playerBuffs.defense));
-
-    // Calculate damage using same formula as PVP
-    const damageReduction = raidBoss.defense / (raidBoss.defense + 100);
-    let damage = playerAttack * (1 - damageReduction);
+    // Simulate raid battle
+    const battleResult = await simulateRaidBattle(userProfile, raidBoss, interaction.user);
     
-    // Apply variance (0.8-1.2)
-    const variance = 0.8 + Math.random() * 0.4;
-    damage = Math.max(1, Math.floor(damage * variance));
-
-    // Check for critical
-    const critChance = 5 + (playerBuffs.critChance || 0);
-    let isCrit = Math.random() * 100 < critChance;
-    if (isCrit) {
-      const critDMG = 100 + (playerBuffs.critDMG || 0);
-      damage = Math.floor(damage * (1 + critDMG / 100));
-    }
+    let totalDamageDealt = battleResult.totalPlayerDamage;
+    const playerDefeated = battleResult.playerDefeated;
+    const bossDefeated = battleResult.bossDefeated;
 
     // Apply damage to boss using atomic operation
     const damageUpdate = await RaidBoss.findByIdAndUpdate(
       raidBoss._id,
       {
-        $inc: { currentHp: -damage },
+        $inc: { currentHp: -totalDamageDealt },
         $push: { participantsToday: userId },
       },
       { new: true }
@@ -1466,13 +1623,13 @@ async function handleRaid(interaction) {
       // Entry exists, increment damage
       await RaidBoss.updateOne(
         { _id: raidBoss._id, "leaderboard.userId": userId },
-        { $inc: { "leaderboard.$.damageDealt": damage } }
+        { $inc: { "leaderboard.$.damageDealt": totalDamageDealt } }
       );
     } else {
       // New entry, add to leaderboard
       await RaidBoss.updateOne(
         { _id: raidBoss._id },
-        { $push: { leaderboard: { userId, username: userName, damageDealt: damage } } }
+        { $push: { leaderboard: { userId, username: userName, damageDealt: totalDamageDealt } } }
       );
     }
 
@@ -1482,7 +1639,7 @@ async function handleRaid(interaction) {
     // Sort leaderboard by damage
     raidBoss.leaderboard.sort((a, b) => b.damageDealt - a.damageDealt);
 
-    const bossDefeated = raidBoss.currentHp <= 0;
+    const isBossDefeated = raidBoss.currentHp <= 0;
 
     // Set cooldown
     let newCooldown = cooldown || new Cooldown({ userId, commandName: "raid" });
@@ -1494,16 +1651,28 @@ async function handleRaid(interaction) {
       .setTitle(`🐉 ${raidBoss.bossName}`)
       .setDescription(raidBoss.bossDescription)
       .addFields(
-        { name: "⚔️ Your Damage", value: `${damage.toLocaleString()} ${isCrit ? "💥 CRIT" : ""}`, inline: true },
+        { name: "⚔️ Battle Summary", value: battleResult.combatLog.slice(0, 1024), inline: false },
         { name: "❤️ Boss Health", value: `${raidBoss.currentHp.toLocaleString()} / ${raidBoss.maxHp.toLocaleString()}`, inline: true },
         { name: "📊 Health Bar", value: getHealthBar(raidBoss.currentHp, raidBoss.maxHp), inline: false }
       );
 
-    if (bossDefeated) {
+    if (playerDefeated) {
+      embed.setColor(0xff0000);
+      embed.addFields(
+        { name: "💀 You were defeated!", value: `Your battle ended after taking too much damage.`, inline: false }
+      );
+    } else {
+      embed.setColor(0xffaa00);
+      embed.addFields(
+        { name: "⚔️ You Survived!", value: `Your battle has ended. You dealt **${totalDamageDealt.toLocaleString()}** damage!`, inline: false }
+      );
+    }
+
+    if (isBossDefeated) {
       // Distribute victory rewards
       const baseReward = 50000;
-      const moneyPool = 1000000;
-      const totalDamageDealt = raidBoss.leaderboard.reduce((sum, e) => sum + e.damageDealt, 0);
+      const moneyPool = raidBoss.maxHp * 10; // Scales with boss difficulty
+      const totalCycleDamage = raidBoss.leaderboard.reduce((sum, e) => sum + e.damageDealt, 0);
 
       embed.setColor(0xffd700);
       embed.setTitle("🎉 RAID BOSS DEFEATED! 🎉");
@@ -1511,13 +1680,17 @@ async function handleRaid(interaction) {
         { name: "🏆 Top 5 Damage Dealers", value: getLeaderboardText(raidBoss.leaderboard), inline: false }
       );
 
+      // Mark boss as defeated
+      raidBoss.bossDefeatedTime = new Date();
+      await raidBoss.save();
+
       // Reward all participants
-      for (let i = 0; i < raidBoss.participantsToday.length; i++) {
-        const participant = raidBoss.participantsToday[i];
+      for (let i = 0; i < raidBoss.participantsThisCycle.length; i++) {
+        const participant = raidBoss.participantsThisCycle[i];
         const profile = await UserProfile.findOne({ userId: participant });
         if (profile) {
           const participantEntry = raidBoss.leaderboard.find(e => e.userId === participant);
-          const damagePercent = participantEntry ? participantEntry.damageDealt / totalDamageDealt : 0;
+          const damagePercent = participantEntry ? participantEntry.damageDealt / totalCycleDamage : 0;
           const placement = raidBoss.leaderboard.findIndex(e => e.userId === participant) + 1;
           
           // Base reward + damage% of money pool
@@ -1568,22 +1741,10 @@ async function handleRaid(interaction) {
           }
         }
       }
-
-      // Reset boss for next cycle
-      const bossStats = await calculateBossStats();
-      raidBoss.level = bossStats.level;
-      raidBoss.attack = bossStats.attack;
-      raidBoss.defense = bossStats.defense;
-      raidBoss.maxHp = bossStats.maxHp;
-      raidBoss.currentHp = raidBoss.maxHp;
-      raidBoss.leaderboard = [];
-      raidBoss.participantsToday = [];
-      await raidBoss.save();
     } else {
-      embed.setColor(0xff0000);
       embed.addFields(
         { name: "🏆 Top 3 Damage Dealers", value: getLeaderboardText(raidBoss.leaderboard, 3), inline: false },
-        { name: "👥 Total Participants", value: raidBoss.participantsToday.length.toString(), inline: true }
+        { name: "👥 Total Participants", value: raidBoss.participantsThisCycle.length.toString(), inline: true }
       );
     }
 
@@ -1614,7 +1775,7 @@ function getLeaderboardText(leaderboard, limit = 5) {
 }
 
 async function calculateBossStats() {
-  // Simulate combat for each player to calculate their average damage
+  // Simulate combat for each player to calculate their average damage and durability
   const allPlayers = await UserProfile.find({});
   
   if (allPlayers.length === 0) {
@@ -1628,11 +1789,18 @@ async function calculateBossStats() {
   }
 
   let totalAvgDamage = 0;
+  let totalAvgHp = 0;
+  let totalAvgDefense = 0;
 
-  // Simulate each player's damage
+  // Simulate each player's damage and calculate durability
   for (const player of allPlayers) {
     const buffs = await calculateActiveBuffs(player);
-    const playerAttack = Math.floor((25 + player.level * 2 + (buffs.attackFlat || 0)) * (1 + buffs.attack));
+    const playerAttack = Math.floor((25 + player.level * 2 + (playerBuffs.attackFlat || 0)) * (1 + playerBuffs.attack));
+    const playerDefense = Math.floor((12 + player.level + (playerBuffs.defenseFlat || 0)) * (1 + playerBuffs.defense));
+    const playerHp = Math.floor((250 + player.level * 15 + (playerBuffs.hpFlat || 0)) * (1 + (playerBuffs.hpPercent || 0)));
+    
+    totalAvgHp += playerHp;
+    totalAvgDefense += playerDefense;
     
     // Simulate 10 hits to get average
     let totalDamage = 0;
@@ -1661,15 +1829,39 @@ async function calculateBossStats() {
   }
 
   const avgDamageAllPlayers = totalAvgDamage / allPlayers.length;
+  const avgPlayerHp = totalAvgHp / allPlayers.length;
+  const avgPlayerDefense = totalAvgDefense / allPlayers.length;
   const avgLevel = allPlayers.reduce((sum, p) => sum + p.level, 0) / allPlayers.length || 1;
 
   // Scale boss to be challenging for the group
-  const bossStats = {
-    level: Math.ceil(avgLevel * 1.5),
-    attack: Math.ceil(avgDamageAllPlayers * 1.8), // Boss does ~1.8x avg player damage
-    defense: Math.ceil((avgLevel + 12) * 1.5),
-    maxHp: Math.ceil(5000 + allPlayers.length * (avgDamageAllPlayers * 15)) // HP scales with player count AND avg damage
-  };
+  const bossLevel = Math.ceil(avgLevel * 1.5);
+  
+  // HP: Significantly increased to require teamwork
+  // Base 10k + scales heavily with both player count AND damage
+  // With 1-hour cooldown, players can attack more often, so boss needs way more HP
+  const maxHp = Math.ceil(10000 + allPlayers.length * (avgDamageAllPlayers * 50)); // Increased from 15 to 50
+  
+  // ATTACK: Scaled to kill average player in ~5 turns
+  // Target is 5 turns, so avgPlayerHp / 5 damage needed per turn
+  // Account for player dodge (avg 15%) and defense reduction
+  const targetTurnsToKill = 5;
+  const avgDodgeChance = 15; // Average dodge chance
+  const damageReductionAgainstBoss = avgPlayerDefense / (avgPlayerDefense + 100);
+  
+  // Boss needs to deal X damage per turn to kill in 5 turns
+  let bossAttackNeeded = Math.ceil(avgPlayerHp / targetTurnsToKill);
+  
+  // Adjust for dodge (if 15% dodge, boss needs to deal more to account for missed turns)
+  bossAttackNeeded = Math.ceil(bossAttackNeeded / (1 - avgDodgeChance / 100));
+  
+  // Reverse the damage reduction formula: what attack stat is needed to deal this damage after defense?
+  const baseAttack = Math.ceil(bossAttackNeeded / (1 - damageReductionAgainstBoss));
+  
+  // Ensure it scales with player damage (at least 1.8x average player damage)
+  const minAttack = Math.ceil(avgDamageAllPlayers * 1.8);
+  const bossAttack = Math.max(baseAttack, minAttack);
+
+  const bossDefense = Math.ceil((avgLevel + 12) * 1.5);
 
   // Log boss generation
   console.log('\n' + '='.repeat(70));
@@ -1678,15 +1870,132 @@ async function calculateBossStats() {
   console.log(`📊 Player Data:`);
   console.log(`   Total Players: ${allPlayers.length}`);
   console.log(`   Avg Player Level: ${avgLevel.toFixed(1)}`);
+  console.log(`   Avg Player HP: ${avgPlayerHp.toFixed(0)}`);
+  console.log(`   Avg Player Defense: ${avgPlayerDefense.toFixed(0)}`);
   console.log(`   Avg Player Damage: ${avgDamageAllPlayers.toFixed(1)}/turn`);
   console.log(`\n🐉 Boss Stats:`);
-  console.log(`   Level: ${bossStats.level}`);
-  console.log(`   Attack: ${bossStats.attack}`);
-  console.log(`   Defense: ${bossStats.defense}`);
-  console.log(`   Max HP: ${bossStats.maxHp.toLocaleString()}`);
+  console.log(`   Level: ${bossLevel}`);
+  console.log(`   Attack: ${bossAttack} (target: ${bossAttackNeeded.toFixed(0)} dmg/turn to kill in ${targetTurnsToKill} turns)`);
+  console.log(`   Defense: ${bossDefense}`);
+  console.log(`   Max HP: ${maxHp.toLocaleString()}`);
   console.log('='.repeat(70) + '\n');
 
-  return bossStats;
+  return {
+    level: bossLevel,
+    attack: bossAttack,
+    defense: bossDefense,
+    maxHp: maxHp
+  };
 }
+
+async function simulateRaidBattle(playerProfile, raidBoss, playerUser) {
+  // Get player stats
+  const playerBuffs = await calculateActiveBuffs(playerProfile);
+  const playerAttack = Math.floor((25 + playerProfile.level * 2 + (playerBuffs.attackFlat || 0)) * (1 + playerBuffs.attack));
+  const playerDefense = Math.floor((12 + playerProfile.level + (playerBuffs.defenseFlat || 0)) * (1 + playerBuffs.defense));
+  const playerCrit = 5 + (playerBuffs.critChance || 0);
+  const playerCritDMG = 100 + (playerBuffs.critDMG || 0);
+  const playerLuck = playerBuffs.luck || 0;
+  let playerHp = Math.floor((250 + playerProfile.level * 15 + (playerBuffs.hpFlat || 0)) * (1 + (playerBuffs.hpPercent || 0)));
+  const maxPlayerHp = playerHp;
+
+  // Boss stats
+  let bossHp = raidBoss.currentHp;
+  const maxBossHp = raidBoss.maxHp;
+  const bossDodge = Math.min(5 + (playerLuck * 10), 30); // Boss dodge scales with player luck
+  
+  let totalPlayerDamage = 0;
+  let turn = 0;
+  const maxTurns = 100;
+  let combatLog = "";
+
+  while (playerHp > 0 && bossHp > 0 && turn < maxTurns) {
+    turn++;
+
+    // PLAYER'S TURN
+    // Check dodge
+    if (Math.random() * 100 < bossDodge) {
+      combatLog += `💨 **${raidBoss.bossName}** dodges!\n`;
+    } else {
+      // Calculate damage
+      const variance = 0.8 + (Math.random() * 0.4);
+      const damageReduction = raidBoss.defense / (raidBoss.defense + 100);
+      let damage = Math.floor(playerAttack * (1 - damageReduction) * variance);
+      if (damage < 1) damage = 1;
+
+      // Check for crit
+      const isCrit = Math.random() * 100 < playerCrit;
+      if (isCrit) {
+        damage = Math.floor(damage * (1 + playerCritDMG / 100));
+      }
+
+      // Crushing Blow proc
+      let procMessages = [];
+      if (Math.random() * 100 < (15 + playerLuck * 5)) {
+        const bonusDamage = Math.floor(raidBoss.defense * 0.5 * variance);
+        damage += bonusDamage;
+        procMessages.push("💥 CRUSHING BLOW");
+      }
+
+      // Lifesteal
+      if (Math.random() * 100 < (10 + playerLuck * 3)) {
+        const heal = Math.floor(damage * 0.3);
+        playerHp = Math.min(playerHp + heal, maxPlayerHp);
+        procMessages.push(`💚 LIFESTEAL (+${heal})`);
+      }
+
+      bossHp -= damage;
+      totalPlayerDamage += damage;
+
+      const procText = procMessages.length > 0 ? ` [${procMessages.join(", ")}]` : "";
+      combatLog += `⚔️ **${playerUser.username}** attacks for **${damage}** damage${isCrit ? " (CRIT!)" : ""}${procText}\n`;
+    }
+
+    if (bossHp <= 0) break;
+
+    // BOSS'S TURN - Counter-attack
+    // Check player dodge
+    const playerDodge = Math.min(5 + (playerLuck * 10), 30);
+    if (Math.random() * 100 < playerDodge) {
+      combatLog += `💨 **${playerUser.username}** dodges!\n`;
+    } else {
+      // Calculate boss damage
+      const variance = 0.8 + (Math.random() * 0.4);
+      const bossDamageReduction = playerDefense / (playerDefense + 100);
+      let bossDamage = Math.floor(raidBoss.attack * (1 - bossDamageReduction) * variance);
+      if (bossDamage < 1) bossDamage = 1;
+
+      // Boss can crit too (10% base)
+      if (Math.random() * 100 < 10) {
+        bossDamage = Math.floor(bossDamage * 1.5);
+      }
+
+      playerHp -= bossDamage;
+      combatLog += `🔥 **${raidBoss.bossName}** attacks for **${bossDamage}** damage!\n`;
+    }
+
+    // Add spacing for readability
+    if (turn % 5 === 0) combatLog += "\n";
+  }
+
+  const playerDefeated = playerHp <= 0;
+  const bossDefeated = bossHp <= 0;
+
+  if (playerDefeated) {
+    combatLog += `\n💀 **${playerUser.username}** was defeated!`;
+  } else if (bossDefeated) {
+    combatLog += `\n🐉 **${raidBoss.bossName}** was defeated!`;
+  } else {
+    combatLog += `\n⏰ Battle ended - Max turns reached`;
+  }
+
+  return {
+    totalPlayerDamage,
+    playerDefeated,
+    bossDefeated,
+    combatLog: combatLog.slice(0, 1024) // Limit to 1024 chars for embed
+  };
+}
+
 
 

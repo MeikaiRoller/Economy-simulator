@@ -9,8 +9,9 @@ const RaidBossSchema = new mongoose.Schema({
   defense: { type: Number, required: true },
   level: { type: Number, default: 1 },
   
-  // Reset tracking
-  lastResetTime: { type: Date, default: Date.now },
+  // Cycle tracking - event based (when boss dies, not midnight)
+  cycleStartTime: { type: Date, default: Date.now },
+  bossDefeatedTime: { type: Date, default: null }, // When boss was defeated
   
   // Leaderboard for current cycle
   leaderboard: [{
@@ -20,8 +21,8 @@ const RaidBossSchema = new mongoose.Schema({
     _id: false
   }],
   
-  // Track participants today for base reward eligibility
-  participantsToday: [String],
+  // Track participants in current cycle
+  participantsThisCycle: [String],
   
   // Boss name/info
   bossName: { type: String, default: "Le Gromp" },
