@@ -70,7 +70,7 @@ async function testNextCycleBossGeneration() {
     const bossLevel = Math.ceil(avgLevel * 1.5);
     const bossAttack = Math.ceil(avgDamageAllPlayers * 1.8);
     const bossDefense = Math.ceil((avgLevel + 12) * 1.5);
-    const bossMaxHp = Math.ceil(5000 + allPlayers.length * (avgDamageAllPlayers * 15));
+    const bossMaxHp = Math.ceil(10000 + allPlayers.length * (avgDamageAllPlayers * 50)); // Updated: 10k base, 50x multiplier
 
     console.log('\n' + '='.repeat(80));
     console.log('🐉 NEXT CYCLE BOSS STATS');

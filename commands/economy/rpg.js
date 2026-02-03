@@ -10,6 +10,43 @@ const { generateItem, rollRarity } = require("../../utils/generateItem");
 // Store active duel challenges (in-memory)
 const activeChallenges = new Map();
 
+// Cache for boss stats calculation (prevents multiple simultaneous calculations)
+let bossStatsCalculating = false;
+let bossStatsCache = null;
+let bossStatsCacheTime = 0;
+
+async function getCachedBossStats() {
+  const CACHE_DURATION = 5000; // 5 seconds
+  const now = Date.now();
+  
+  // If cache is fresh, return it
+  if (bossStatsCache && (now - bossStatsCacheTime) < CACHE_DURATION) {
+    return bossStatsCache;
+  }
+  
+  // If already calculating, wait for it
+  if (bossStatsCalculating) {
+    // Poll until calculation completes (max 10 seconds)
+    for (let i = 0; i < 100; i++) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      if (!bossStatsCalculating && bossStatsCache) {
+        return bossStatsCache;
+      }
+    }
+  }
+  
+  // We're the first to calculate
+  bossStatsCalculating = true;
+  try {
+    const stats = await calculateBossStats();
+    bossStatsCache = stats;
+    bossStatsCacheTime = Date.now();
+    return stats;
+  } finally {
+    bossStatsCalculating = false;
+  }
+}
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName("rpg")
@@ -1316,7 +1353,7 @@ async function handleRaid(interaction) {
     let raidBoss = await RaidBoss.findOne({});
     
     if (!raidBoss) {
-      const bossStats = await calculateBossStats();
+      const bossStats = await getCachedBossStats();
       const result = await RaidBoss.findOneAndUpdate(
         {}, // Find any raid boss
         {
@@ -1368,7 +1405,7 @@ async function handleRaid(interaction) {
         return interaction.editReply({ embeds: [embed] });
       } else {
         // Downtime expired - spawn new boss atomically (only first player triggers this)
-        const newBossStats = await calculateBossStats();
+        const newBossStats = await getCachedBossStats();
         const updatedBoss = await RaidBoss.findOneAndUpdate(
           {
             _id: raidBoss._id,
