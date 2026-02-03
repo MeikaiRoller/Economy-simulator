@@ -1463,6 +1463,9 @@ async function handleRaid(interaction) {
 
     // Update leaderboard atomically - handles both new and existing entries in one operation
     // This prevents race conditions by using MongoDB's atomic array update operators
+    console.log(`[RAID] ${userName} (${userId}) updating leaderboard with ${totalDamageDealt} damage`);
+    console.log(`[RAID] Current leaderboard before update:`, raidBoss.leaderboard.map(e => `${e.username}:${e.damageDealt}`));
+    
     await RaidBoss.updateOne(
       { _id: raidBoss._id },
       [
@@ -1505,6 +1508,7 @@ async function handleRaid(interaction) {
 
     // Re-fetch boss to check if it's defeated (use the atomically updated HP)
     raidBoss = await RaidBoss.findOne({});
+    console.log(`[RAID] Leaderboard after update:`, raidBoss.leaderboard.map(e => `${e.username}:${e.damageDealt}`));
     raidBoss.leaderboard.sort((a, b) => b.damageDealt - a.damageDealt);
     
     // Check if boss was defeated AND we're the first to mark it (atomic check-and-set)
