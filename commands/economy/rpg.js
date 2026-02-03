@@ -1312,27 +1312,32 @@ async function handleRaid(interaction) {
     }
 
     // Get or create raid boss atomically
-    const bossStats = await calculateBossStats();
-    const result = await RaidBoss.findOneAndUpdate(
-      {}, // Find any raid boss
-      {
-        $setOnInsert: {
-          bossName: "Le Gromp",
-          bossDescription: "An ancient amphibian guardian that grows stronger with each challenger",
-          currentHp: bossStats.maxHp,
-          maxHp: bossStats.maxHp,
-          attack: bossStats.attack,
-          defense: bossStats.defense,
-          level: bossStats.level,
-          leaderboard: [],
-          participantsThisCycle: [],
-          cycleStartTime: new Date(),
-          bossDefeatedTime: null
-        }
-      },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
-    let raidBoss = result;
+    // Only calculate stats if boss doesn't exist (optimization - prevents slow queries on every raid)
+    let raidBoss = await RaidBoss.findOne({});
+    
+    if (!raidBoss) {
+      const bossStats = await calculateBossStats();
+      const result = await RaidBoss.findOneAndUpdate(
+        {}, // Find any raid boss
+        {
+          $setOnInsert: {
+            bossName: "Le Gromp",
+            bossDescription: "An ancient amphibian guardian that grows stronger with each challenger",
+            currentHp: bossStats.maxHp,
+            maxHp: bossStats.maxHp,
+            attack: bossStats.attack,
+            defense: bossStats.defense,
+            level: bossStats.level,
+            leaderboard: [],
+            participantsThisCycle: [],
+            cycleStartTime: new Date(),
+            bossDefeatedTime: null
+          }
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+      raidBoss = result;
+    }
 
     // Check if boss is in downtime (defeated less than 1 hour ago)
     const oneHourInMs = 60 * 60 * 1000;

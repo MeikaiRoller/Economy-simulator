@@ -59,6 +59,10 @@ const client = new Client({
 
         const guilds = await client.guilds.fetch();
         for (const guild of guilds.values()) {
+          if (!guild.commands) {
+            console.log(`⚠️ Skipping guild ${guild.id} - commands not available`);
+            continue;
+          }
           const guildCommands = await guild.commands.fetch();
           for (const cmd of guildCommands.values()) {
             if (commandsToRemove.includes(cmd.name)) {
