@@ -1658,9 +1658,9 @@ async function calculateBossStats() {
   // Simulate each player's damage and calculate durability
   for (const player of allPlayers) {
     const buffs = await calculateActiveBuffs(player);
-    const playerAttack = Math.floor((25 + player.level * 2 + (playerBuffs.attackFlat || 0)) * (1 + playerBuffs.attack));
-    const playerDefense = Math.floor((12 + player.level + (playerBuffs.defenseFlat || 0)) * (1 + playerBuffs.defense));
-    const playerHp = Math.floor((250 + player.level * 15 + (playerBuffs.hpFlat || 0)) * (1 + (playerBuffs.hpPercent || 0)));
+    const playerAttack = Math.floor((25 + player.level * 2 + (buffs.attackFlat || 0)) * (1 + buffs.attack));
+    const playerDefense = Math.floor((12 + player.level + (buffs.defenseFlat || 0)) * (1 + buffs.defense));
+    const playerHp = Math.floor((250 + player.level * 15 + (buffs.hpFlat || 0)) * (1 + (buffs.hpPercent || 0)));
     
     totalAvgHp += playerHp;
     totalAvgDefense += playerDefense;
