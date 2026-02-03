@@ -738,13 +738,17 @@ async function handleLoadout(interaction) {
   const itemEnergy = Math.round(itemBufFs.energy || 0);
   const itemDodge = Math.round(itemBufFs.dodge || 0);
 
-  // Final stats (combined)
-  const finalAttack = Math.round(baseAttack * (1 + (buffs.attack || 0)) + (buffs.attackFlat || 0));
-  const finalDefense = Math.round(baseDefense * (1 + (buffs.defense || 0)) + (buffs.defenseFlat || 0));
-  const finalHP = Math.round(baseHP * (1 + (buffs.hpPercent || 0)) + (buffs.hpFlat || 0));
-  const finalCritRate = Math.round(5 + (buffs.critChance || 0));
-  const finalCritDMG = Math.round(50 + (buffs.critDMG || 0));
-  const finalEnergy = Math.round(buffs.energy || 0);
+  // Final stats (combined) = Base + Item Stats + Set Bonus multipliers applied
+  const setBonusDefense = (buffs.defense || 0) - (itemBufFs.defense || 0);
+  const setBonusAttack = (buffs.attack || 0) - (itemBufFs.attack || 0);
+  const setBonusHP = (buffs.hpPercent || 0) - (itemBufFs.hpPercent || 0);
+  
+  const finalAttack = Math.round((baseAttack + itemAttack) * (1 + setBonusAttack));
+  const finalDefense = Math.round((baseDefense + itemDefense) * (1 + setBonusDefense));
+  const finalHP = Math.round((baseHP + itemHP) * (1 + setBonusHP));
+  const finalCritRate = Math.round(baseCritRate + itemCritRate + ((buffs.critChance || 0) - (itemBufFs.critChance || 0)));
+  const finalCritDMG = Math.round(baseCritDMG + itemCritDMG + ((buffs.critDMG || 0) - (itemBufFs.critDMG || 0)));
+  const finalEnergy = Math.round(itemEnergy + ((buffs.energy || 0) - (itemBufFs.energy || 0)));
   const finalDodge = Math.round((buffs.dodge || 0));
   const finalCounterChance = Math.round((buffs.counterChance || 0) * 100);
   const finalCounterDamage = Math.round((buffs.counterDamage || 0) * 100);
