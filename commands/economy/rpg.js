@@ -1286,12 +1286,15 @@ async function handleRaid(interaction) {
     const torontoDayNow = new Date(torontoTime.getUTCFullYear(), torontoTime.getUTCMonth(), torontoTime.getUTCDate());
     const torontoDayLastReset = new Date(torontoLastResetTime.getUTCFullYear(), torontoLastResetTime.getUTCMonth(), torontoLastResetTime.getUTCDate());
 
+    // Check if it's a new day - this takes priority over everything
+    const isNewDay = torontoDayNow > torontoDayLastReset;
+
     // Check if raid expired (11 PM Toronto time = 1 hour before midnight)
     const torontoHour = torontoTime.getUTCHours();
-    const raidExpired = torontoHour >= 23 && raidBoss.currentHp > 0;
+    const raidExpired = torontoHour >= 23 && raidBoss.currentHp > 0 && !isNewDay;
 
-    if (torontoDayNow > torontoDayLastReset) {
-      // Reset the boss
+    if (isNewDay) {
+      // Reset the boss for the new day
       raidBoss.lastResetTime = new Date();
       raidBoss.leaderboard = [];
       raidBoss.participantsToday = [];
@@ -1303,6 +1306,9 @@ async function handleRaid(interaction) {
       raidBoss.defense = bossStats.defense;
       raidBoss.maxHp = bossStats.maxHp;
       raidBoss.currentHp = raidBoss.maxHp;
+      
+      // Don't check for raid expiry if it's a new day
+      await raidBoss.save();
     }
 
     // Check if raid has expired (11 PM - midnight window)
@@ -1403,8 +1409,8 @@ async function handleRaid(interaction) {
       return interaction.editReply({ embeds: [embed] });
     }
 
-    // Check if boss is already defeated today
-    if (raidBoss.currentHp <= 0) {
+    // Check if boss is already defeated today (but also handle negative HP edge case)
+    if (raidBoss.currentHp <= 0 && !isNewDay) {
       const leaderboardText = raidBoss.leaderboard
         .slice(0, 5)
         .map((entry, idx) => `${idx + 1}. **${entry.username}** - ${entry.damageDealt.toLocaleString()} dmg`)
