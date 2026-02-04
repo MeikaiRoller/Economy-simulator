@@ -1289,6 +1289,9 @@ async function handleRaid(interaction) {
     let raidBoss = await RaidBoss.findOne({});
     
     if (!raidBoss) {
+      // Clear cache when creating new boss to ensure fresh stats
+      bossStatsCache = null;
+      bossStatsCacheTime = 0;
       const bossStats = await getCachedBossStats();
       const result = await RaidBoss.findOneAndUpdate(
         {}, // Find any raid boss
@@ -1352,6 +1355,9 @@ async function handleRaid(interaction) {
         return interaction.editReply({ embeds: [embed] });
       } else {
         // Downtime expired - spawn new boss atomically (only first player triggers this)
+        // Clear cache to ensure fresh stats for new boss cycle
+        bossStatsCache = null;
+        bossStatsCacheTime = 0;
         const newBossStats = await getCachedBossStats();
         const updatedBoss = await RaidBoss.findOneAndUpdate(
           {
@@ -1803,9 +1809,8 @@ async function calculateBossStats() {
   const bossLevel = Math.ceil(avgLevel * 1.5);
   
   // HP: Significantly increased to require teamwork
-  // Base 10k + scales heavily with both player count AND damage
-  // With 1-hour cooldown, players can attack more often, so boss needs way more HP
-  const maxHp = Math.ceil(10000 + allPlayers.length * (avgDamageAllPlayers * 50)); // Increased from 15 to 50
+  // Base 10k + scales with both player count AND damage
+  const maxHp = Math.ceil(10000 + allPlayers.length * (avgDamageAllPlayers * 15));
   
   // ATTACK: Scaled to kill average player in ~5 turns
   // Target is 5 turns, so avgPlayerHp / 5 damage needed per turn
