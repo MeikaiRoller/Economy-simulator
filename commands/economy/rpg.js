@@ -1229,7 +1229,7 @@ async function handleRaid(interaction) {
             const placement = raidBoss.leaderboard.findIndex(e => e.userId === userId) + 1;
             
             const baseReward = 50000;
-            const moneyPool = raidBoss.maxHp * 10; // Scales with boss difficulty
+            const moneyPool = raidBoss.maxHp * 50; // Scales with boss difficulty
             const poolReward = Math.floor(moneyPool * damagePercent);
             const reward = baseReward + poolReward;
             
@@ -1515,7 +1515,7 @@ async function handleRaid(interaction) {
       
       // Distribute rewards to all participants
       const baseReward = 50000;
-      const moneyPool = raidBoss.maxHp * 10;
+      const moneyPool = raidBoss.maxHp * 50;
       const totalCycleDamage = raidBoss.leaderboard.reduce((sum, e) => sum + e.damageDealt, 0);
 
       embed.setColor(0xffd700);
