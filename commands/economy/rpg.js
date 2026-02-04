@@ -1478,9 +1478,10 @@ async function handleRaid(interaction) {
     // Check if boss was defeated AND we're the first to mark it (atomic check-and-set)
     const isBossDefeated = raidBoss.currentHp <= 0 && !raidBoss.bossDefeatedTime;
 
-    // Set cooldown
+    // Set cooldown - resets on the hour
     const nextHour = new Date(now);
-    nextHour.setTime(nextHour.getTime() + 1 * 60 * 60 * 1000); // 1 hour cooldown
+    nextHour.setMinutes(0, 0, 0); // Reset to start of hour
+    nextHour.setHours(nextHour.getHours() + 1); // Move to next hour
     
     let newCooldown = cooldown || new Cooldown({ userId, commandName: "raid" });
     newCooldown.endsAt = nextHour;
