@@ -55,6 +55,19 @@ const UserProfileSchema = new mongoose.Schema({
     feet: { type: String, default: null },
     accessory: { type: String, default: null }, // Only 1 accessory slot
   },
+
+  lastRaidReward: {
+    bossId: { type: String, default: null },
+    bossName: { type: String, default: null },
+    placement: { type: Number, default: null },
+    money: { type: Number, default: 0 },
+    xp: { type: Number, default: 0 },
+    itemId: { type: String, default: null },
+    itemName: { type: String, default: null },
+    itemEmoji: { type: String, default: null },
+    itemRarity: { type: String, default: null },
+    awardedAt: { type: Date, default: null },
+  },
 });
 
 module.exports = mongoose.model("UserProfile", UserProfileSchema);

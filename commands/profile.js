@@ -9,6 +9,32 @@ function calculateXPForLevel(level) {
   return Math.floor(100 * Math.pow(level, 1.5));
 }
 
+async function processLevelUp(userProfile) {
+  let levelsGained = 0;
+  let currentXP = userProfile.xp || 0;
+  let currentLevel = userProfile.level || 1;
+  
+  while (currentXP >= calculateXPForLevel(currentLevel)) {
+    currentXP -= calculateXPForLevel(currentLevel);
+    currentLevel++;
+    levelsGained++;
+  }
+  
+  if (levelsGained > 0) {
+    await UserProfile.updateOne(
+      { userId: userProfile.userId },
+      { 
+        $set: { 
+          level: currentLevel,
+          xp: currentXP
+        }
+      }
+    );
+  }
+  
+  return levelsGained;
+}
+
 module.exports = {
   run: async ({ interaction }) => {
     if (!interaction.inGuild()) {
@@ -24,13 +50,19 @@ module.exports = {
     try {
       const targetUser =
         interaction.options.getUser("target-user") || interaction.user;
-      const userProfile = await UserProfile.findOne({ userId: targetUser.id });
+      let userProfile = await UserProfile.findOne({ userId: targetUser.id });
 
       if (!userProfile) {
         await interaction.editReply({
           content: "❌ That user doesn't have a profile yet!",
         });
         return;
+      }
+
+      // Process any pending level-ups
+      const levelsGained = await processLevelUp(userProfile);
+      if (levelsGained > 0) {
+        userProfile = await UserProfile.findOne({ userId: targetUser.id });
       }
 
       // Build safe string values
@@ -72,7 +104,7 @@ module.exports = {
       const level = userProfile.level || 1;
       const currentXP = userProfile.xp || 0;
       const xpNeeded = calculateXPForLevel(level);
-      const xpPercent = Math.floor((currentXP / xpNeeded) * 100);
+      const xpPercent = Math.min(100, Math.floor((currentXP / xpNeeded) * 100));
       const xpBar = `${'█'.repeat(Math.floor(xpPercent / 5))}${'░'.repeat(20 - Math.floor(xpPercent / 5))} ${xpPercent}%`;
       const hp = userProfile.hp || 100;
       const played = userProfile.gamesPlayed || 0;
@@ -157,8 +189,16 @@ module.exports = {
       const embed = new EmbedBuilder()
         .setTitle(`⚔️ ${targetUser.username}'s Profile`)
         .setThumbnail(targetUser.displayAvatarURL())
-        .setDescription(`*A mighty adventurer of the realm*`)
-        .addFields(
+        .setDescription(`*A mighty adventurer of the realm*`);
+      
+      // Show level-up notification if they leveled up
+      if (levelsGained > 0) {
+        embed.addFields(
+          { name: "🎉 LEVEL UP!", value: `You advanced **${levelsGained}** level${levelsGained > 1 ? 's' : ''}! Now Level **${level}**`, inline: false }
+        );
+      }
+      
+      embed.addFields(
           // Wealth Section
           { name: "💰 WEALTH", value: `Wallet: ${balance}\nBank: ${bank}\n**Net Worth: ${netWorth}**\n\`${breakdown}\``, inline: false },
           

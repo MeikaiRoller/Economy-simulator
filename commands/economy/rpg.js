@@ -1284,6 +1284,7 @@ async function handleRaid(interaction) {
             .setTimestamp();
 
           // Check if user participated and show their rewards
+          const userProfile = await UserProfile.findOne({ userId });
           const userEntry = raidBoss.leaderboard.find(e => e.userId === userId);
           if (userEntry) {
             const totalCycleDamage = raidBoss.leaderboard.reduce((sum, e) => sum + e.damageDealt, 0);
@@ -1296,26 +1297,24 @@ async function handleRaid(interaction) {
             const reward = baseReward + poolReward;
             
             const xpEarned = raidBoss.maxHp;
-            
-            // Determine item rarity received
-            let itemRarity = "None";
-            if (placement === 1) {
-              itemRarity = "Legendary";
-            } else if (placement === 2) {
-              itemRarity = "Legendary/Epic";
-            } else if (placement === 3) {
-              itemRarity = "Epic";
-            } else if (placement <= 5) {
-              itemRarity = "Epic/Rare";
-            } else if (placement <= 10) {
-              itemRarity = "Rare";
-            } else {
-              itemRarity = "Rare/Uncommon";
-            }
 
-            embed.addFields(
-              { name: "💰 Your Rewards", value: `Placement: #${placement}\nMoney: $${reward.toLocaleString()}\nXP: ${xpEarned.toLocaleString()}\nItem: ${itemRarity}`, inline: false }
-            );
+            const lastReward = userProfile?.lastRaidReward;
+            const isSameBoss = lastReward?.bossId === raidBoss._id.toString();
+
+            if (isSameBoss && lastReward) {
+              const itemText = lastReward.itemName
+                ? `${lastReward.itemEmoji || '📦'} ${lastReward.itemName} (${lastReward.itemRarity || 'Unknown'})`
+                : "None";
+
+              embed.addFields(
+                { name: "💰 Your Rewards", value: `Placement: #${lastReward.placement || placement}\nMoney: $${(lastReward.money || reward).toLocaleString()}\nXP: ${(lastReward.xp || xpEarned).toLocaleString()}\nItem: ${itemText}`, inline: false }
+              );
+            } else {
+              // Fallback (in case rewards weren't stored yet)
+              embed.addFields(
+                { name: "💰 Your Rewards", value: `Placement: #${placement}\nMoney: $${reward.toLocaleString()}\nXP: ${xpEarned.toLocaleString()}\nItem: (awaited)`, inline: false }
+              );
+            }
           } else {
             embed.addFields(
               { name: "💰 Your Rewards", value: "You did not participate in this cycle.", inline: false }
@@ -1473,31 +1472,49 @@ async function handleRaid(interaction) {
           $set: {
             leaderboard: {
               $cond: {
-                if: { $in: [userId, "$leaderboard.userId"] },
-                // User exists - increment their damage
-                then: {
-                  $map: {
-                    input: "$leaderboard",
-                    as: "entry",
-                    in: {
-                      $cond: {
-                        if: { $eq: ["$$entry.userId", userId] },
-                        then: {
-                          userId: "$$entry.userId",
-                          username: userName, // Update username
-                          damageDealt: { $add: ["$$entry.damageDealt", totalDamageDealt] }
-                        },
-                        else: "$$entry"
-                      }
+                if: {
+                  $anyElementTrue: {
+                    $map: {
+                      input: "$leaderboard",
+                      as: "entry",
+                      in: { $eq: ["$$entry.userId", userId] }
                     }
                   }
                 },
-                // User doesn't exist - add them to the array
+                // User exists - increment their damage and sort
+                then: {
+                  $sortArray: {
+                    input: {
+                      $map: {
+                        input: "$leaderboard",
+                        as: "entry",
+                        in: {
+                          $cond: {
+                            if: { $eq: ["$$entry.userId", userId] },
+                            then: {
+                              userId: "$$entry.userId",
+                              username: userName,
+                              damageDealt: { $add: ["$$entry.damageDealt", totalDamageDealt] }
+                            },
+                            else: "$$entry"
+                          }
+                        }
+                      }
+                    },
+                    sortBy: { damageDealt: -1 }
+                  }
+                },
+                // User doesn't exist - add them and sort
                 else: {
-                  $concatArrays: [
-                    "$leaderboard",
-                    [{ userId, username: userName, damageDealt: totalDamageDealt }]
-                  ]
+                  $sortArray: {
+                    input: {
+                      $concatArrays: [
+                        "$leaderboard",
+                        [{ userId, username: userName, damageDealt: totalDamageDealt }]
+                      ]
+                    },
+                    sortBy: { damageDealt: -1 }
+                  }
                 }
               }
             }
@@ -1509,7 +1526,6 @@ async function handleRaid(interaction) {
     // Re-fetch boss to check if it's defeated (use the atomically updated HP)
     raidBoss = await RaidBoss.findOne({});
     console.log(`[RAID] Leaderboard after update:`, raidBoss.leaderboard.map(e => `${e.username}:${e.damageDealt}`));
-    raidBoss.leaderboard.sort((a, b) => b.damageDealt - a.damageDealt);
     
     // Check if boss was defeated AND we're the first to mark it (atomic check-and-set)
     const isBossDefeated = raidBoss.currentHp <= 0 && !raidBoss.bossDefeatedTime;
@@ -1579,8 +1595,12 @@ async function handleRaid(interaction) {
       }
 
       // WE marked it defeated, so WE distribute rewards to all participants
-      for (let i = 0; i < raidBoss.participantsThisCycle.length; i++) {
-        const participant = raidBoss.participantsThisCycle[i];
+      // Re-fetch the boss to get the LATEST participants list (not the stale snapshot from earlier)
+      const latestBoss = await RaidBoss.findOne({ _id: raidBoss._id });
+      console.log(`[RAID] Distributing rewards to ${latestBoss.participantsThisCycle.length} participants:`, latestBoss.participantsThisCycle);
+      
+      for (let i = 0; i < latestBoss.participantsThisCycle.length; i++) {
+        const participant = latestBoss.participantsThisCycle[i];
         const profile = await UserProfile.findOne({ userId: participant });
         if (profile) {
           const participantEntry = raidBoss.leaderboard.find(e => e.userId === participant);
@@ -1640,6 +1660,27 @@ async function handleRaid(interaction) {
               );
             }
           }
+
+          // Store last raid reward for cooldown display
+          await UserProfile.updateOne(
+            { userId: participant },
+            {
+              $set: {
+                lastRaidReward: {
+                  bossId: raidBoss._id.toString(),
+                  bossName: raidBoss.bossName,
+                  placement,
+                  money: reward,
+                  xp: raidBoss.maxHp,
+                  itemId: droppedItem?.itemId || null,
+                  itemName: droppedItem?.name || null,
+                  itemEmoji: droppedItem?.emoji || null,
+                  itemRarity: droppedItem?.rarity || null,
+                  awardedAt: new Date(),
+                }
+              }
+            }
+          );
           
           // If this is the current user, show their rewards
           if (participant === userId) {
@@ -1647,6 +1688,18 @@ async function handleRaid(interaction) {
             embed.addFields(
               { name: "💰 Your Rewards", value: `$${reward.toLocaleString()}\n${raidBoss.maxHp.toLocaleString()} XP\n${itemName}`, inline: true }
             );
+            
+            // Check for level-ups after reward distribution
+            const leveledUp = await handleLevelUp(updatedProfile);
+            if (leveledUp) {
+              const levelUpEmbed = new EmbedBuilder()
+                .setTitle("🎉 LEVEL UP!")
+                .setDescription(`You've advanced to **Level ${updatedProfile.level + leveledUp}**!`)
+                .setColor(0xffd700)
+                .setTimestamp();
+              
+              await interaction.followUp({ embeds: [levelUpEmbed] });
+            }
           }
         }
       }
