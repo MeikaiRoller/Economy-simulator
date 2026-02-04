@@ -122,5 +122,36 @@ new CommandHandler({
 (async () => {
   await mongoose.connect(process.env.MONGO_URI);
   console.log("Connected to Database.");
+  
+  // Fix: Ensure all items have correct element properties
+  const Item = require("./schema/Item");
+  const SET_ELEMENTS = {
+    "Ethans Prowess": null,
+    "Olivias Fury": "pyro",
+    "Justins Clapping": "electro",
+    "Lilahs Cold Heart": "cryo",
+    "Hasagi": "anemo",
+    "Maries Zhongli Bodypillow": "geo",
+    "Andys Soraka": "hydro"
+  };
+  
+  const itemsToFix = await Item.find({
+    $or: [
+      { element: { $exists: false } },
+      { element: null }
+    ]
+  });
+  
+  if (itemsToFix.length > 0) {
+    console.log(`🔧 Fixing ${itemsToFix.length} items missing element property...`);
+    let fixed = 0;
+    for (const item of itemsToFix) {
+      const newElement = SET_ELEMENTS[item.setName] || null;
+      await Item.findByIdAndUpdate(item._id, { element: newElement });
+      fixed++;
+    }
+    console.log(`✅ Fixed ${fixed} items with correct elements`);
+  }
+  
   client.login(process.env.TOKEN);
 })();

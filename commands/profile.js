@@ -168,9 +168,9 @@ module.exports = {
       const baseDefense = 12 + level; // +1 per level
       const baseHP = 250 + (level * 15); // +15 per level
 
-      const finalAttack = Math.round(baseAttack * (1 + buffs.attack) + (buffs.attackFlat || 0));
-      const finalDefense = Math.round(baseDefense * (1 + buffs.defense) + (buffs.defenseFlat || 0));
-      const finalHP = Math.round(baseHP * (1 + (buffs.hpPercent || 0)) + (buffs.hpFlat || 0));
+      const finalAttack = Math.round((baseAttack + (buffs.attackFlat || 0)) * (1 + buffs.attack));
+      const finalDefense = Math.round((baseDefense + (buffs.defenseFlat || 0)) * (1 + buffs.defense));
+      const finalHP = Math.round((baseHP + (buffs.hpFlat || 0)) * (1 + (buffs.hpPercent || 0)));
       const finalCritRate = Math.round(5 + (buffs.critChance || 0)); // Base 5% crit
       const finalCritDMG = Math.round(50 + (buffs.critDMG || 0)); // Base 50% crit damage
 
@@ -252,9 +252,29 @@ module.exports = {
         // Dual Mastery (3+3 builds)
         if (buffs.setInfo.dualMastery) {
           const mastery = buffs.setInfo.dualMastery;
+          // Show actual stat bonuses
+          const bonusText = Object.entries(mastery)
+            .filter(([key]) => key !== 'name')
+            .map(([key, value]) => {
+              if (key === 'attack') return `+${Math.round(value * 100)}% ATK`;
+              if (key === 'critRate') return `+${value}% Crit`;
+              if (key === 'energy') return `+${value} Energy`;
+              if (key === 'critDMG') return `+${value}% Crit DMG`;
+              if (key === 'damageBonus') return `+${Math.round(value * 100)}% DMG`;
+              if (key === 'hp') return `+${Math.round(value * 100)}% HP`;
+              if (key === 'dodge') return `+${value}% Dodge`;
+              if (key === 'cooldownReduction') return `+${value}% CDR`;
+              if (key === 'defense') return `+${Math.round(value * 100)}% DEF`;
+              if (key === 'counterChance') return `+${Math.round(value * 100)}% Counter`;
+              if (key === 'healing') return `+${Math.round(value * 100)}% Heal`;
+              return '';
+            })
+            .filter(Boolean)
+            .join(', ');
+          
           setFields.push({ 
             name: `🔥⚡ ${mastery.name}`, 
-            value: `*Mixed element synergy activated!*`, 
+            value: bonusText || `*Mixed element synergy activated!*`, 
             inline: false 
           });
         }

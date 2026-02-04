@@ -4,19 +4,31 @@ const { calculateSetBonuses } = require("./setbonuses");
 async function calculateActiveBuffs(userProfile) {
   const buffs = createEmptyBuffs();
 
+  const normalizePercent = (value) => {
+    if (value === undefined || value === null) return 0;
+    const num = Number(value) || 0;
+    // Legacy data stored as whole-number percentages (e.g., 25 for 25%).
+    // If value is > 1, assume it is a percent and convert to a decimal.
+    return num > 1 ? num / 100 : num;
+  };
+
+  const clamp = (value, min, max) => {
+    return Math.max(min, Math.min(max, value));
+  };
+
   // 1. Add the user's level-based buffs first
   if (userProfile.buffs) {
-    buffs.attack += userProfile.buffs.attackBoost || 0;
-    buffs.defense += userProfile.buffs.defenseBoost || 0;
-    buffs.magic += userProfile.buffs.magicBoost || 0;
-    buffs.magicDefense += userProfile.buffs.magicDefenseBoost || 0;
-    buffs.critChance += userProfile.buffs.criticalChance || 0;
-    buffs.xpBoost += userProfile.buffs.xpBoost || 0;
-    buffs.healingBoost += userProfile.buffs.healingBoost || 0;
-    buffs.luck += userProfile.buffs.luckBoost || 0;
-    buffs.lootBoost += userProfile.buffs.lootBoost || 0;
-    buffs.findRateBoost += userProfile.buffs.findRateBoost || 0;
-    buffs.cooldownReduction += userProfile.buffs.cooldownReduction || 0;
+    buffs.attack += clamp(normalizePercent(userProfile.buffs.attackBoost), 0, 5);
+    buffs.defense += clamp(normalizePercent(userProfile.buffs.defenseBoost), 0, 5);
+    buffs.magic += clamp(normalizePercent(userProfile.buffs.magicBoost), 0, 5);
+    buffs.magicDefense += clamp(normalizePercent(userProfile.buffs.magicDefenseBoost), 0, 5);
+    buffs.critChance += clamp(userProfile.buffs.criticalChance || 0, 0, 100);
+    buffs.xpBoost += clamp(normalizePercent(userProfile.buffs.xpBoost), 0, 10);
+    buffs.healingBoost += clamp(normalizePercent(userProfile.buffs.healingBoost), 0, 5);
+    buffs.luck += clamp(normalizePercent(userProfile.buffs.luckBoost), 0, 5);
+    buffs.lootBoost += clamp(normalizePercent(userProfile.buffs.lootBoost), 0, 10);
+    buffs.findRateBoost += clamp(normalizePercent(userProfile.buffs.findRateBoost), 0, 10);
+    buffs.cooldownReduction += clamp(normalizePercent(userProfile.buffs.cooldownReduction), 0, 1);
   }
 
   // 2. Get equipped items
@@ -118,7 +130,18 @@ async function calculateActiveBuffs(userProfile) {
   buffs.counterDamage += setBonuses.counterDamage || 0;
   buffs.lifesteal += setBonuses.lifesteal || 0;
   buffs.lifestealChance += setBonuses.lifestealChance || 0;
-
+  // 6. Final safeguard clamps to prevent extreme values
+  buffs.attack = clamp(buffs.attack, 0, 10);
+  buffs.defense = clamp(buffs.defense, 0, 10);
+  buffs.hpPercent = clamp(buffs.hpPercent, 0, 10);
+  buffs.critChance = clamp(buffs.critChance, 0, 100);
+  buffs.critDMG = clamp(buffs.critDMG, 0, 500);
+  buffs.dodge = clamp(buffs.dodge, 0, 50);
+  buffs.lifesteal = clamp(buffs.lifesteal, 0, 100);
+  buffs.attackFlat = clamp(buffs.attackFlat, 0, 10000);
+  buffs.defenseFlat = clamp(buffs.defenseFlat, 0, 10000);
+  buffs.hpFlat = clamp(buffs.hpFlat, 0, 50000);
+  // DEBUG: Final values for yvei
   return buffs;
 }
 

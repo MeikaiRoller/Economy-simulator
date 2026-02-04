@@ -86,198 +86,139 @@ const ELEMENT_RESONANCE = {
 
 const REACTION_TOGGLES = {
   // ACTIVE REACTIONS (Currently enabled in game)
-  "pyro-hydro": true,      // Vaporize
-  "pyro-cryo": true,       // Melt
-  "pyro-electro": true,    // Overload
-  "hydro-cryo": true,      // Freeze
-  "electro-cryo": true,    // Superconduct
-  "anemo-pyro": true,      // Pyro Swirl
-  "anemo-hydro": true,     // Hydro Swirl
   "anemo-cryo": true,      // Cryo Swirl
+  "anemo-hydro": true,     // Hydro Swirl
+  "anemo-pyro": true,      // Pyro Swirl
+  "cryo-electro": true,    // Superconduct
+  "cryo-hydro": true,      // Freeze
+  "cryo-pyro": true,       // Melt
+  "electro-pyro": true,    // Overload
+  "hydro-pyro": true,      // Vaporize
   
   // FUTURE REACTIONS (Planned for future patches)
-  "hydro-electro": false,  // Electro-Charged - PATCH 1.1
   "anemo-electro": false,  // Electro Swirl - PATCH 1.1
   "anemo-geo": false,      // Geo Swirl - PATCH 1.2
-  "geo-pyro": false,       // Crystallize (Pyro) - PATCH 1.2
-  "geo-hydro": false,      // Crystallize (Hydro) - PATCH 1.2
-  "geo-electro": false,    // Crystallize (Electro) - PATCH 1.2
-  "geo-cryo": false        // Crystallize (Cryo) - PATCH 1.2
+  "cryo-geo": false,       // Crystallize (Cryo) - PATCH 1.2
+  "electro-geo": false,    // Crystallize (Electro) - PATCH 1.2
+  "electro-hydro": false,  // Electro-Charged - PATCH 1.1
+  "hydro-geo": false,      // Crystallize (Hydro) - PATCH 1.2
+  "pyro-geo": false        // Crystallize (Pyro) - PATCH 1.2
 };
 
 // Elemental reactions (when wearing 3+3 of different elements)
+// Keys are alphabetically sorted for consistent lookup
 const ELEMENTAL_REACTIONS = {
-  "pyro-hydro": {
-    name: "Vaporize",
-    effect: "Next attack deals 1.5x damage",
-    damageMultiplier: 1.5,
-    procChance: 0.35  // Buffed from 0.25
-  },
-  "pyro-electro": {
-    name: "Overload",
-    effect: "Bonus AoE damage + 20% stun chance",
-    bonusDamage: 75,  // Buffed from 50
-    stunChance: 0.20,  // Buffed from 0.15
-    procChance: 0.30  // Buffed from 0.20
-  },
-  "hydro-cryo": {
-    name: "Freeze",
-    effect: "25% chance to stun enemy for 1 turn",
-    stunChance: 0.25,  // Buffed from 0.20
-    procChance: 0.25  // Buffed from 0.15
-  },
-  "electro-cryo": {
-    name: "Superconduct",
-    effect: "Reduce enemy defense by 40% for 3 turns",
-    defenseReduction: 0.40,  // Buffed from 0.30
-    duration: 3,
-    procChance: 0.30  // Buffed from 0.20
-  },
-  "anemo-pyro": {
-    name: "Pyro Swirl",
-    effect: "15% damage reflected to attacker",
-    reflectDamage: 0.15,  // Buffed from 0.10
-    procChance: 0.25  // Buffed from 0.15
+  "anemo-cryo": {
+    name: "Cryo Swirl",
+    effect: "Reflect 15% damage + reduce enemy dodge",
+    reflectDamage: 0.15,
+    procChance: 0.50
   },
   "anemo-hydro": {
     name: "Hydro Swirl",
-    effect: "15% damage reflected + heal 8% of damage",
-    reflectDamage: 0.15,  // Buffed from 0.10
-    healPercent: 0.08,  // Buffed from 0.05
-    procChance: 0.25  // Buffed from 0.15
+    effect: "Reflect 15% damage + heal 8% of damage",
+    reflectDamage: 0.15,
+    healPercent: 0.08,
+    procChance: 0.50
   },
-  "anemo-electro": {
-    name: "Electro Swirl",
-    effect: "15% damage reflected + energy boost",
-    reflectDamage: 0.15,  // Buffed from 0.10
-    energyBonus: 10,
-    procChance: 0.25  // Buffed from 0.15
+  "anemo-pyro": {
+    name: "Pyro Swirl",
+    effect: "Reflect 15% damage to attacker",
+    reflectDamage: 0.15,
+    procChance: 0.50
   },
-  "anemo-cryo": {
-    name: "Cryo Swirl",
-    effect: "15% damage reflected + slow (reduced dodge)",
-    reflectDamage: 0.15,  // Buffed from 0.10
-    dodgeReduction: 0.10,
-    procChance: 0.25  // Buffed from 0.15
+  "cryo-electro": {
+    name: "Superconduct",
+    effect: "Reduce enemy defense by 40% for 3 turns",
+    defenseReduction: 0.40,
+    procChance: 0.60
   },
-  "anemo-geo": {
-    name: "Geo Swirl",
-    effect: "15% damage reflected + shield (defense boost)",
-    reflectDamage: 0.15,  // Buffed from 0.10
-    defenseBonus: 0.15,
-    procChance: 0.25  // Buffed from 0.15
+  "cryo-hydro": {
+    name: "Freeze",
+    effect: "25% chance to stun enemy for 1 turn",
+    stunChance: 0.25,
+    procChance: 0.50
   },
-  "geo-pyro": {
-    name: "Crystallize (Pyro)",
-    effect: "Shield absorbs damage + attack boost",
-    shieldPercent: 0.10,
-    attackBonus: 0.15,  // Buffed from 0.10
-    procChance: 0.25  // Buffed from 0.15
+  "cryo-pyro": {
+    name: "Melt",
+    effect: "Next attack deals 2.0x damage",
+    damageMultiplier: 2.0,
+    procChance: 0.50
   },
-  "geo-hydro": {
-    name: "Crystallize (Hydro)",
-    effect: "Shield absorbs damage + HP boost",
-    shieldPercent: 0.10,
-    hpBonus: 0.15,  // Buffed from 0.10
-    procChance: 0.25  // Buffed from 0.15
+  "electro-hydro": {
+    name: "Electro-Charged",
+    effect: "Continuous damage over time",
+    dotDamage: 20,
+    duration: 3,
+    procChance: 0.60
   },
-  "geo-electro": {
-    name: "Crystallize (Electro)",
-    effect: "Shield absorbs damage + energy boost",
-    shieldPercent: 0.10,
-    energyBonus: 15,
-    procChance: 0.25  // Buffed from 0.15
+  "electro-pyro": {
+    name: "Overload",
+    effect: "Bonus AoE damage + 20% stun chance",
+    bonusDamage: 75,
+    stunChance: 0.20,
+    procChance: 0.60
   },
-  "geo-cryo": {
-    name: "Crystallize (Cryo)",
-    effect: "Shield absorbs damage + crit rate boost",
-    shieldPercent: 0.10,
-    critRateBonus: 8,  // Buffed from 5
-    procChance: 0.25  // Buffed from 0.15
+  "hydro-pyro": {
+    name: "Vaporize",
+    effect: "Next attack deals 1.5x damage",
+    damageMultiplier: 1.5,
+    procChance: 0.70
   },
   "hydro-electro": {
     name: "Electro-Charged",
     effect: "Continuous damage over time",
     dotDamage: 20,  // Buffed from 15
     duration: 3,
-    procChance: 0.30  // Buffed from 0.20
+    procChance: 0.60  // Buffed from 0.20
   },
   "pyro-cryo": {
     name: "Melt",
     effect: "Next attack deals 2x damage",
     damageMultiplier: 2.0,
-    procChance: 0.25  // Buffed from 0.15
+    procChance: 0.50  // Buffed from 0.15
   }
 };
 
 // Dual Element Mastery (when wearing exactly 3+3 of two different elements)
+// Keys are alphabetically sorted for consistent lookup
 // These bonuses compensate for the stat dilution of mixed sets
 const DUAL_MASTERY = {
-  "pyro-electro": {
-    name: "Overload Mastery",
-    attack: 0.12,
-    critRate: 5,
-    energy: 15
-  },
-  "pyro-cryo": {
-    name: "Melt Mastery",
-    attack: 0.15,
-    critDMG: 20,
-    damageBonus: 0.10
-  },
-  "pyro-hydro": {
-    name: "Vaporize Mastery",
-    attack: 0.15,
-    hp: 0.10,
-    damageBonus: 0.08
-  },
-  "pyro-anemo": {
-    name: "Pyro Swirl Mastery",
-    attack: 0.12,
-    dodge: 8,
-    cooldownReduction: 10
-  },
-  "pyro-geo": {
-    name: "Pyro Crystallize Mastery",
-    attack: 0.10,
-    defense: 0.12,
-    counterChance: 0.08
-  },
-  "electro-cryo": {
-    name: "Superconduct Mastery",
-    attack: 0.10,
+  "anemo-cryo": {
+    name: "Cryo Swirl Mastery",
     critRate: 8,
-    energy: 20
+    critDMG: 20,
+    dodge: 8
   },
-  "electro-hydro": {
-    name: "Electro-Charged Mastery",
-    hp: 0.15,
-    energy: 25,
-    healing: 0.12
-  },
-  "electro-anemo": {
+  "anemo-electro": {
     name: "Electro Swirl Mastery",
     energy: 30,
     dodge: 10,
     cooldownReduction: 12
   },
-  "electro-geo": {
-    name: "Electro Crystallize Mastery",
+  "anemo-geo": {
+    name: "Geo Swirl Mastery",
     defense: 0.15,
-    energy: 20,
-    counterChance: 0.08
+    dodge: 10,
+    counterChance: 0.10
   },
-  "cryo-hydro": {
-    name: "Freeze Mastery",
-    critRate: 10,
-    critDMG: 25,
-    hp: 0.10
-  },
-  "cryo-anemo": {
-    name: "Cryo Swirl Mastery",
-    critRate: 8,
-    critDMG: 20,
+  "anemo-hydro": {
+    name: "Hydro Swirl Mastery",
+    hp: 0.15,
+    healing: 0.15,
     dodge: 8
+  },
+  "anemo-pyro": {
+    name: "Pyro Swirl Mastery",
+    attack: 0.12,
+    dodge: 8,
+    cooldownReduction: 10
+  },
+  "cryo-electro": {
+    name: "Superconduct Mastery",
+    attack: 0.10,
+    critRate: 8,
+    energy: 20
   },
   "cryo-geo": {
     name: "Cryo Crystallize Mastery",
@@ -285,23 +226,53 @@ const DUAL_MASTERY = {
     defense: 0.15,
     hp: 0.10
   },
-  "hydro-anemo": {
-    name: "Hydro Swirl Mastery",
-    hp: 0.15,
-    healing: 0.15,
-    dodge: 8
+  "cryo-hydro": {
+    name: "Freeze Mastery",
+    critRate: 10,
+    critDMG: 25,
+    hp: 0.10
   },
-  "hydro-geo": {
+  "cryo-pyro": {
+    name: "Melt Mastery",
+    attack: 0.15,
+    critDMG: 20,
+    damageBonus: 0.10
+  },
+  "electro-geo": {
+    name: "Electro Crystallize Mastery",
+    defense: 0.15,
+    energy: 20,
+    counterChance: 0.08
+  },
+  "electro-hydro": {
+    name: "Electro-Charged Mastery",
+    hp: 0.15,
+    energy: 25,
+    healing: 0.12
+  },
+  "electro-pyro": {
+    name: "Overload Mastery",
+    attack: 0.12,
+    critRate: 5,
+    energy: 15
+  },
+  "geo-hydro": {
     name: "Hydro Crystallize Mastery",
     hp: 0.20,
     defense: 0.15,
     counterChance: 0.08
   },
-  "anemo-geo": {
-    name: "Geo Swirl Mastery",
-    defense: 0.15,
-    dodge: 10,
-    counterChance: 0.10
+  "geo-pyro": {
+    name: "Pyro Crystallize Mastery",
+    attack: 0.10,
+    defense: 0.12,
+    counterChance: 0.08
+  },
+  "hydro-pyro": {
+    name: "Vaporize Mastery",
+    attack: 0.15,
+    hp: 0.10,
+    damageBonus: 0.08
   }
 };
 
@@ -310,6 +281,7 @@ const DUAL_MASTERY = {
  */
 function getReactionKey(elem1, elem2) {
   if (!elem1 || !elem2 || elem1 === elem2) return null;
+  // Always sort alphabetically for consistent key lookup
   return [elem1, elem2].sort().join('-');
 }
 

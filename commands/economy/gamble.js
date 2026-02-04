@@ -60,8 +60,8 @@ module.exports = {
         return;
       }
 
-      // ✅ Max bet validation ($50,000 cap)
-      const MAX_BET = 50_000;
+      // ✅ Max bet validation (1 million cap)
+      const MAX_BET = 1_000_000;
       if (amount > MAX_BET) {
         await interaction.editReply(
           `❌ Max bet is ${MAX_BET.toLocaleString()} 🧪!`

@@ -15,6 +15,16 @@ let bossStatsCalculating = false;
 let bossStatsCache = null;
 let bossStatsCacheTime = 0;
 
+// Defense scaling (higher = less reduction from high armor)
+const ARMOR_CONSTANT = 200;
+const getDamageReduction = (defense) => defense / (defense + ARMOR_CONSTANT);
+const getOffenseMultiplierFromDefense = (defense) => {
+  if (defense < 450) return 1; // No penalty below 450 DEF
+  const reduction = getDamageReduction(defense);
+  const penalty = Math.min(0.45, reduction * 0.85); // Max 45% damage penalty
+  return 1 - penalty;
+};
+
 async function getCachedBossStats() {
   const CACHE_DURATION = 5000; // 5 seconds
   const now = Date.now();
@@ -146,11 +156,13 @@ async function handleAdventure(interaction) {
   // Base Stats (scaled with level)
   const baseAttack = 25 + (userProfile.level * 2); // +2 attack per level
   const baseDefense = 12 + userProfile.level; // +1 defense per level
+  const baseHP = 250 + (userProfile.level * 15); // +15 HP per level
   const baseCritChance = 5;
 
-  // Buffed Player Stats
-  const playerAttack = Math.floor(baseAttack * (1 + activeBuffs.attack));
-  const playerDefense = Math.floor(baseDefense * (1 + activeBuffs.defense));
+  // Buffed Player Stats (apply flat first, then percent)
+  const playerAttack = Math.floor((baseAttack + (activeBuffs.attackFlat || 0)) * (1 + activeBuffs.attack));
+  const playerDefense = Math.floor((baseDefense + (activeBuffs.defenseFlat || 0)) * (1 + activeBuffs.defense));
+  const playerMaxHp = Math.floor((baseHP + (activeBuffs.hpFlat || 0)) * (1 + (activeBuffs.hpPercent || 0)));
   const playerCrit = baseCritChance + activeBuffs.critChance;
   const playerXpBoost = activeBuffs.xpBoost || 0;
   const playerLootBoost = activeBuffs.lootBoost || 0;
@@ -170,7 +182,7 @@ async function handleAdventure(interaction) {
   await cooldown.save();
 
   // Adventure Begins
-  let playerCurrentHp = 250;
+  let playerCurrentHp = playerMaxHp;
   let currentStage = 1;
   const maxStages = 50;
   let stagesCleared = 0;
@@ -705,31 +717,39 @@ async function simulatePvPCombat(challengerProfile, opponentProfile, challengerU
   const challengerBuffs = await calculateActiveBuffs(challengerProfile);
   const opponentBuffs = await calculateActiveBuffs(opponentProfile);
 
+  const toPercent = (value) => {
+    const num = Number(value) || 0;
+    return num > 1 ? num : num * 100;
+  };
+
+  const challengerLifestealChance = toPercent(challengerBuffs.lifestealChance || 0);
+  const challengerLifestealPercent = toPercent(challengerBuffs.lifesteal || 0);
+  const opponentLifestealChance = toPercent(opponentBuffs.lifestealChance || 0);
+  const opponentLifestealPercent = toPercent(opponentBuffs.lifesteal || 0);
+
   // Base stats with flat bonuses
-  const challengerAttack = Math.floor((25 + challengerProfile.level * 2 + (challengerBuffs.attackFlat || 0)) * (1 + challengerBuffs.attack));
+  const rawChallengerAttack = (25 + challengerProfile.level * 2 + (challengerBuffs.attackFlat || 0)) * (1 + challengerBuffs.attack);
   const challengerDefense = Math.floor((12 + challengerProfile.level + (challengerBuffs.defenseFlat || 0)) * (1 + challengerBuffs.defense));
+  const challengerAttack = Math.floor(rawChallengerAttack * getOffenseMultiplierFromDefense(challengerDefense));
   const challengerCrit = 5 + challengerBuffs.critChance;
   const challengerCritDMG = 100 + (challengerBuffs.critDMG || 0);
-  const challengerLuck = challengerBuffs.luck || 0;
   let challengerHp = Math.floor((250 + challengerProfile.level * 15 + (challengerBuffs.hpFlat || 0)) * (1 + (challengerBuffs.hpPercent || 0)));
 
-  const opponentAttack = Math.floor((25 + opponentProfile.level * 2 + (opponentBuffs.attackFlat || 0)) * (1 + opponentBuffs.attack));
+  const rawOpponentAttack = (25 + opponentProfile.level * 2 + (opponentBuffs.attackFlat || 0)) * (1 + opponentBuffs.attack);
   const opponentDefense = Math.floor((12 + opponentProfile.level + (opponentBuffs.defenseFlat || 0)) * (1 + opponentBuffs.defense));
+  const opponentAttack = Math.floor(rawOpponentAttack * getOffenseMultiplierFromDefense(opponentDefense));
   const opponentCrit = 5 + opponentBuffs.critChance;
   const opponentCritDMG = 100 + (opponentBuffs.critDMG || 0);
-  const opponentLuck = opponentBuffs.luck || 0;
   let opponentHp = Math.floor((250 + opponentProfile.level * 15 + (opponentBuffs.hpFlat || 0)) * (1 + (opponentBuffs.hpPercent || 0)));
 
   const maxHpChallenger = challengerHp;
   const maxHpOpponent = opponentHp;
 
-  // Calculate dodge chance (5% base + luck bonus, max 30%)
-  const challengerDodge = Math.min(5 + (challengerLuck * 10), 30);
-  const opponentDodge = Math.min(5 + (opponentLuck * 10), 30);
-
-  // Calculate counter-attack chance (10% base + luck bonus, max 25%)
-  const challengerCounter = Math.min(10 + (challengerLuck * 5), 25);
-  const opponentCounter = Math.min(10 + (opponentLuck * 5), 25);
+  // Calculate dodge/counter from gear-only stats
+  const challengerDodge = Math.min(toPercent(challengerBuffs.dodge || 0), 50);
+  const opponentDodge = Math.min(toPercent(opponentBuffs.dodge || 0), 50);
+  const challengerCounter = Math.min(toPercent(challengerBuffs.counterChance || 0), 50);
+  const opponentCounter = Math.min(toPercent(opponentBuffs.counterChance || 0), 50);
 
   // Combat log
   let log = `**${challengerUser.username}** (Lv.${challengerProfile.level}) vs **${opponentUser.username}** (Lv.${opponentProfile.level})\n\n`;
@@ -772,7 +792,7 @@ async function simulatePvPCombat(challengerProfile, opponentProfile, challengerU
       } else {
         // Calculate damage using LoL armor formula
         const variance = 0.8 + (Math.random() * 0.4); // 0.8 to 1.2
-        const damageReduction = opponentDefense / (opponentDefense + 100);
+        const damageReduction = getDamageReduction(opponentDefense);
         let damage = Math.floor(challengerAttack * (1 - damageReduction) * variance);
         if (damage < 1) damage = 1;
 
@@ -788,31 +808,14 @@ async function simulatePvPCombat(challengerProfile, opponentProfile, challengerU
 
         // Check for special procs
         let procMessages = [];
-        
-        // Crushing Blow (15% chance: ignore 50% defense)
-        if (Math.random() * 100 < (15 + challengerLuck * 5)) {
-          const bonusDamage = Math.floor(opponentDefense * 0.5 * variance);
-          damage += bonusDamage;
-          procMessages.push("💥 CRUSHING BLOW");
-        }
 
-        // Fury (20% chance: attack twice - second attack coming)
-        const furyProc = Math.random() * 100 < (20 + challengerLuck * 3);
-        if (furyProc) {
-          procMessages.push("⚡ FURY");
-        }
-
-        // Lifesteal (10% chance: heal for 30% damage)
-        if (Math.random() * 100 < (10 + challengerLuck * 3)) {
-          const heal = Math.floor(damage * 0.3);
-          challengerHp = Math.min(challengerHp + heal, maxHpChallenger);
-          procMessages.push(`💚 LIFESTEAL (+${heal} HP)`);
-        }
-
-        // Stun (5% chance: opponent skips next turn)
-        if (Math.random() * 100 < (5 + challengerLuck * 2)) {
-          opponentStunned = true;
-          procMessages.push("💫 STUN");
+        // Lifesteal (only if player has lifesteal stats)
+        if (challengerLifestealChance > 0 && challengerLifestealPercent > 0) {
+          if (Math.random() * 100 < challengerLifestealChance) {
+            const heal = Math.floor(damage * (challengerLifestealPercent / 100));
+            challengerHp = Math.min(challengerHp + heal, maxHpChallenger);
+            procMessages.push(`💚 LIFESTEAL (+${heal} HP)`);
+          }
         }
 
         opponentHp -= damage;
@@ -820,18 +823,9 @@ async function simulatePvPCombat(challengerProfile, opponentProfile, challengerU
         const procText = procMessages.length > 0 ? ` [${procMessages.join(", ")}]` : "";
         log += `⚔️ **${challengerUser.username}** attacks for **${damage}** damage${isCrit ? " (CRIT!)" : ""}${procText}! [${Math.max(0, opponentHp)}/${maxHpOpponent} HP]\n`;
 
-        // Fury second attack
-        if (furyProc && opponentHp > 0) {
-          const furyReduction = opponentDefense / (opponentDefense + 100);
-          let furyDamage = Math.floor(challengerAttack * (1 - furyReduction) * (0.8 + Math.random() * 0.4) * 0.6); // 60% damage
-          if (furyDamage < 1) furyDamage = 1;
-          opponentHp -= furyDamage;
-          log += `⚡ **${challengerUser.username}** strikes again for **${furyDamage}** damage! [${Math.max(0, opponentHp)}/${maxHpOpponent} HP]\n`;
-        }
-
         // Counter-attack check (if opponent still alive)
         if (opponentHp > 0 && Math.random() * 100 < opponentCounter) {
-          const counterReduction = challengerDefense / (challengerDefense + 100);
+          const counterReduction = getDamageReduction(challengerDefense);
           let counterDamage = Math.floor(opponentAttack * (1 - counterReduction) * 0.5);
           if (counterDamage < 1) counterDamage = 1;
           challengerHp -= counterDamage;
@@ -854,7 +848,7 @@ async function simulatePvPCombat(challengerProfile, opponentProfile, challengerU
       } else {
         // Calculate damage using LoL armor formula
         const variance = 0.8 + (Math.random() * 0.4);
-        const damageReduction = challengerDefense / (challengerDefense + 100);
+        const damageReduction = getDamageReduction(challengerDefense);
         let oppDamage = Math.floor(opponentAttack * (1 - damageReduction) * variance);
         if (oppDamage < 1) oppDamage = 1;
 
@@ -870,31 +864,14 @@ async function simulatePvPCombat(challengerProfile, opponentProfile, challengerU
 
         // Check for special procs
         let procMessages = [];
-        
-        // Crushing Blow
-        if (Math.random() * 100 < (15 + opponentLuck * 5)) {
-          const bonusDamage = Math.floor(challengerDefense * 0.5 * variance);
-          oppDamage += bonusDamage;
-          procMessages.push("💥 CRUSHING BLOW");
-        }
 
-        // Fury
-        const furyProc = Math.random() * 100 < (20 + opponentLuck * 3);
-        if (furyProc) {
-          procMessages.push("⚡ FURY");
-        }
-
-        // Lifesteal
-        if (Math.random() * 100 < (10 + opponentLuck * 3)) {
-          const heal = Math.floor(oppDamage * 0.3);
-          opponentHp = Math.min(opponentHp + heal, maxHpOpponent);
-          procMessages.push(`💚 LIFESTEAL (+${heal} HP)`);
-        }
-
-        // Stun
-        if (Math.random() * 100 < (5 + opponentLuck * 2)) {
-          challengerStunned = true;
-          procMessages.push("💫 STUN");
+        // Lifesteal (only if player has lifesteal stats)
+        if (opponentLifestealChance > 0 && opponentLifestealPercent > 0) {
+          if (Math.random() * 100 < opponentLifestealChance) {
+            const heal = Math.floor(oppDamage * (opponentLifestealPercent / 100));
+            opponentHp = Math.min(opponentHp + heal, maxHpOpponent);
+            procMessages.push(`💚 LIFESTEAL (+${heal} HP)`);
+          }
         }
 
         challengerHp -= oppDamage;
@@ -902,18 +879,9 @@ async function simulatePvPCombat(challengerProfile, opponentProfile, challengerU
         const procText = procMessages.length > 0 ? ` [${procMessages.join(", ")}]` : "";
         log += `⚔️ **${opponentUser.username}** attacks for **${oppDamage}** damage${isOppCrit ? " (CRIT!)" : ""}${procText}! [${Math.max(0, challengerHp)}/${maxHpChallenger} HP]\n`;
 
-        // Fury second attack
-        if (furyProc && challengerHp > 0) {
-          const furyReduction = challengerDefense / (challengerDefense + 100);
-          let furyDamage = Math.floor(opponentAttack * (1 - furyReduction) * (0.8 + Math.random() * 0.4) * 0.6);
-          if (furyDamage < 1) furyDamage = 1;
-          challengerHp -= furyDamage;
-          log += `⚡ **${opponentUser.username}** strikes again for **${furyDamage}** damage! [${Math.max(0, challengerHp)}/${maxHpChallenger} HP]\n`;
-        }
-
         // Counter-attack check
         if (challengerHp > 0 && Math.random() * 100 < challengerCounter) {
-          const counterReduction = opponentDefense / (opponentDefense + 100);
+          const counterReduction = getDamageReduction(opponentDefense);
           let counterDamage = Math.floor(challengerAttack * (1 - counterReduction) * 0.5);
           if (counterDamage < 1) counterDamage = 1;
           opponentHp -= counterDamage;
@@ -942,29 +910,39 @@ async function simulatePvPCombatRealTime(challengerProfile, opponentProfile, cha
   const challengerBuffs = await calculateActiveBuffs(challengerProfile);
   const opponentBuffs = await calculateActiveBuffs(opponentProfile);
 
+  const toPercent = (value) => {
+    const num = Number(value) || 0;
+    return num > 1 ? num : num * 100;
+  };
+
+  const challengerLifestealChance = toPercent(challengerBuffs.lifestealChance || 0);
+  const challengerLifestealPercent = toPercent(challengerBuffs.lifesteal || 0);
+  const opponentLifestealChance = toPercent(opponentBuffs.lifestealChance || 0);
+  const opponentLifestealPercent = toPercent(opponentBuffs.lifesteal || 0);
+
   // Base stats with flat bonuses
-  const challengerAttack = Math.floor((25 + challengerProfile.level * 2 + (challengerBuffs.attackFlat || 0)) * (1 + challengerBuffs.attack));
+  const rawChallengerAttack = (25 + challengerProfile.level * 2 + (challengerBuffs.attackFlat || 0)) * (1 + challengerBuffs.attack);
   const challengerDefense = Math.floor((12 + challengerProfile.level + (challengerBuffs.defenseFlat || 0)) * (1 + challengerBuffs.defense));
+  const challengerAttack = Math.floor(rawChallengerAttack * getOffenseMultiplierFromDefense(challengerDefense));
   const challengerCrit = 5 + challengerBuffs.critChance;
   const challengerCritDMG = 100 + (challengerBuffs.critDMG || 0);
-  const challengerLuck = challengerBuffs.luck || 0;
   let challengerHp = Math.floor((250 + challengerProfile.level * 15 + (challengerBuffs.hpFlat || 0)) * (1 + (challengerBuffs.hpPercent || 0)));
 
-  const opponentAttack = Math.floor((25 + opponentProfile.level * 2 + (opponentBuffs.attackFlat || 0)) * (1 + opponentBuffs.attack));
+  const rawOpponentAttack = (25 + opponentProfile.level * 2 + (opponentBuffs.attackFlat || 0)) * (1 + opponentBuffs.attack);
   const opponentDefense = Math.floor((12 + opponentProfile.level + (opponentBuffs.defenseFlat || 0)) * (1 + opponentBuffs.defense));
+  const opponentAttack = Math.floor(rawOpponentAttack * getOffenseMultiplierFromDefense(opponentDefense));
   const opponentCrit = 5 + opponentBuffs.critChance;
   const opponentCritDMG = 100 + (opponentBuffs.critDMG || 0);
-  const opponentLuck = opponentBuffs.luck || 0;
   let opponentHp = Math.floor((250 + opponentProfile.level * 15 + (opponentBuffs.hpFlat || 0)) * (1 + (opponentBuffs.hpPercent || 0)));
 
   const maxHpChallenger = challengerHp;
   const maxHpOpponent = opponentHp;
 
-  // Calculate dodge and counter chances
-  const challengerDodge = Math.min(5 + (challengerLuck * 10) + (challengerBuffs.dodge || 0), 50);
-  const opponentDodge = Math.min(5 + (opponentLuck * 10) + (opponentBuffs.dodge || 0), 50);
-  const challengerCounter = Math.min(10 + (challengerLuck * 5) + (challengerBuffs.counterChance * 100 || 0), 40);
-  const opponentCounter = Math.min(10 + (opponentLuck * 5) + (opponentBuffs.counterChance * 100 || 0), 40);
+  // Calculate dodge and counter chances (gear-only)
+  const challengerDodge = Math.min(toPercent(challengerBuffs.dodge || 0), 50);
+  const opponentDodge = Math.min(toPercent(opponentBuffs.dodge || 0), 50);
+  const challengerCounter = Math.min(toPercent(challengerBuffs.counterChance || 0), 40);
+  const opponentCounter = Math.min(toPercent(opponentBuffs.counterChance || 0), 40);
   
   // Get elemental reaction data
   const challengerReaction = challengerBuffs.setInfo?.elementalReaction;
@@ -1049,8 +1027,8 @@ async function simulatePvPCombatRealTime(challengerProfile, opponentProfile, cha
         lastChallengerAction = `💨 **${opponentUser.username}** dodged **${challengerUser.username}**'s attack!`;
       } else {
         const variance = 0.8 + (Math.random() * 0.4);
-        // Use League of Legends armor formula: Damage = Attack × (1 - Defense/(Defense+100))
-        const defenseReduction = opponentDefense / (opponentDefense + 100);
+        // Use armor formula: Damage = Attack × (1 - Defense/(Defense+ARMOR_CONSTANT))
+        const defenseReduction = getDamageReduction(opponentDefense);
         let damage = Math.floor(challengerAttack * (1 - defenseReduction) * variance);
         if (damage < 5) damage = 5;
 
@@ -1060,6 +1038,8 @@ async function simulatePvPCombatRealTime(challengerProfile, opponentProfile, cha
         if (challengerHp < maxHpChallenger * 0.3) {
           damage = Math.floor(damage * (1 + phaseBonus.damageBonus / 100));
         }
+
+        let procMessages = [];
 
         // Check for elemental reaction procs
         if (challengerReaction && Math.random() < (challengerReaction.procChance || 0.15)) {
@@ -1081,27 +1061,12 @@ async function simulatePvPCombatRealTime(challengerProfile, opponentProfile, cha
         const isCrit = Math.random() * 100 < critChance;
         if (isCrit) damage = Math.floor(damage * (1 + challengerCritDMG / 100));
 
-        let procMessages = [];
-        
-        if (Math.random() * 100 < (15 + challengerLuck * 5)) {
-          // Crushing blow bonus based on armor effectiveness (not raw armor value)
-          const bonusDamage = Math.floor(damage * 0.3);
-          damage += bonusDamage;
-          procMessages.push("💥");
-        }
-
-        const furyProc = Math.random() * 100 < (20 + challengerLuck * 3);
-        if (furyProc) procMessages.push("⚡");
-
-        if (Math.random() * 100 < (10 + challengerLuck * 3)) {
-          const heal = Math.floor(damage * 0.3);
-          challengerHp = Math.min(challengerHp + heal, maxHpChallenger);
-          procMessages.push("💚");
-        }
-
-        if (Math.random() * 100 < (5 + challengerLuck * 2)) {
-          opponentStunned = true;
-          procMessages.push("💫");
+        if (challengerLifestealChance > 0 && challengerLifestealPercent > 0) {
+          if (Math.random() * 100 < challengerLifestealChance) {
+            const heal = Math.floor(damage * (challengerLifestealPercent / 100));
+            challengerHp = Math.min(challengerHp + heal, maxHpChallenger);
+            procMessages.push("💚");
+          }
         }
 
         opponentHp -= damage;
@@ -1109,16 +1074,8 @@ async function simulatePvPCombatRealTime(challengerProfile, opponentProfile, cha
         const procText = procMessages.length > 0 ? ` [${procMessages.join(" ")}]` : "";
         lastChallengerAction = `⚔️ **${challengerUser.username}** → ${damage} DMG${isCrit ? " (CRIT)" : ""}${procText}`;
 
-        if (furyProc && opponentHp > 0) {
-          const furyDefenseReduction = opponentDefense / (opponentDefense + 100);
-          let furyDamage = Math.floor(challengerAttack * (1 - furyDefenseReduction) * (0.8 + Math.random() * 0.4) * 0.6);
-          if (furyDamage < 5) furyDamage = 5;
-          opponentHp -= furyDamage;
-          lastChallengerAction += ` +${furyDamage}`;
-        }
-
         if (opponentHp > 0 && Math.random() * 100 < opponentCounter) {
-          const opponentCounterDefenseReduction = challengerDefense / (challengerDefense + 100);
+          const opponentCounterDefenseReduction = getDamageReduction(challengerDefense);
           let counterDamage = Math.floor(opponentAttack * (1 - opponentCounterDefenseReduction) * 0.5);
           if (counterDamage < 3) counterDamage = 3;
           challengerHp -= counterDamage;
@@ -1143,8 +1100,8 @@ async function simulatePvPCombatRealTime(challengerProfile, opponentProfile, cha
         lastOpponentAction = `💨 **${challengerUser.username}** dodged **${opponentUser.username}**'s attack!`;
       } else {
         const variance = 0.8 + (Math.random() * 0.4);
-        // Use League of Legends armor formula: Damage = Attack × (1 - Defense/(Defense+100))
-        const defenseReduction = challengerDefense / (challengerDefense + 100);
+        // Use armor formula: Damage = Attack × (1 - Defense/(Defense+ARMOR_CONSTANT))
+        const defenseReduction = getDamageReduction(challengerDefense);
         let oppDamage = Math.floor(opponentAttack * (1 - defenseReduction) * variance);
         if (oppDamage < 5) oppDamage = 5;
 
@@ -1154,6 +1111,8 @@ async function simulatePvPCombatRealTime(challengerProfile, opponentProfile, cha
         if (opponentHp < maxHpOpponent * 0.3) {
           oppDamage = Math.floor(oppDamage * (1 + phaseBonus.damageBonus / 100));
         }
+
+        let procMessages = [];
 
         // Check for elemental reaction procs
         if (opponentReaction && Math.random() < (opponentReaction.procChance || 0.15)) {
@@ -1175,27 +1134,13 @@ async function simulatePvPCombatRealTime(challengerProfile, opponentProfile, cha
         const isOppCrit = Math.random() * 100 < critChance;
         if (isOppCrit) oppDamage = Math.floor(oppDamage * (1 + opponentCritDMG / 100));
 
-        let procMessages = [];
         
-        if (Math.random() * 100 < (15 + opponentLuck * 5)) {
-          // Crushing blow bonus based on effective damage (not raw defense)
-          const bonusDamage = Math.floor(oppDamage * 0.3);
-          oppDamage += bonusDamage;
-          procMessages.push("💥");
-        }
-
-        const furyProc = Math.random() * 100 < (20 + opponentLuck * 3);
-        if (furyProc) procMessages.push("⚡");
-
-        if (Math.random() * 100 < (10 + opponentLuck * 3)) {
-          const heal = Math.floor(oppDamage * 0.3);
-          opponentHp = Math.min(opponentHp + heal, maxHpOpponent);
-          procMessages.push("💚");
-        }
-
-        if (Math.random() * 100 < (5 + opponentLuck * 2)) {
-          challengerStunned = true;
-          procMessages.push("💫");
+        if (opponentLifestealChance > 0 && opponentLifestealPercent > 0) {
+          if (Math.random() * 100 < opponentLifestealChance) {
+            const heal = Math.floor(oppDamage * (opponentLifestealPercent / 100));
+            opponentHp = Math.min(opponentHp + heal, maxHpOpponent);
+            procMessages.push("💚");
+          }
         }
 
         challengerHp -= oppDamage;
@@ -1203,16 +1148,8 @@ async function simulatePvPCombatRealTime(challengerProfile, opponentProfile, cha
         const procText = procMessages.length > 0 ? ` [${procMessages.join(" ")}]` : "";
         lastOpponentAction = `⚔️ **${opponentUser.username}** → ${oppDamage} DMG${isOppCrit ? " (CRIT)" : ""}${procText}`;
 
-        if (furyProc && challengerHp > 0) {
-          const opponentFuryDefenseReduction = challengerDefense / (challengerDefense + 100);
-          let furyDamage = Math.floor(opponentAttack * (1 - opponentFuryDefenseReduction) * (0.8 + Math.random() * 0.4) * 0.6);
-          if (furyDamage < 5) furyDamage = 5;
-          challengerHp -= furyDamage;
-          lastOpponentAction += ` +${furyDamage}`;
-        }
-
         if (challengerHp > 0 && Math.random() * 100 < challengerCounter) {
-          const challengerCounterDefenseReduction = opponentDefense / (opponentDefense + 100);
+          const challengerCounterDefenseReduction = getDamageReduction(opponentDefense);
           let counterDamage = Math.floor(challengerAttack * (1 - challengerCounterDefenseReduction) * 0.5);
           if (counterDamage < 3) counterDamage = 3;
           opponentHp -= counterDamage;
@@ -1391,12 +1328,23 @@ async function handleRaid(interaction) {
           .map((entry, idx) => `${idx + 1}. **${entry.username}** - ${entry.damageDealt.toLocaleString()} dmg`)
           .join("\n") || "No participants";
 
+        const rewardProfile = await UserProfile.findOne({ userId });
+        const lastReward = rewardProfile?.lastRaidReward;
+        const isSameBoss = lastReward?.bossId === raidBoss._id.toString();
+        const rewardItemText = lastReward?.itemName
+          ? `${lastReward.itemEmoji || "🎁"} ${lastReward.itemName}`
+          : "None";
+        const rewardText = isSameBoss && lastReward
+          ? `$${(lastReward.money || 0).toLocaleString()}\n${(lastReward.xp || 0).toLocaleString()} XP\n${rewardItemText}`
+          : "No reward recorded for this cycle.";
+
         const embed = new EmbedBuilder()
           .setTitle("🎉 Raid Cycle Complete!")
           .setDescription(`The **${raidBoss.bossName}** has been defeated!`)
           .addFields(
             { name: "🏆 Top Damage Dealers", value: leaderboardText, inline: false },
-            { name: "⏰ Next Boss Spawns In", value: `**${timeUntilNextBoss}** minute${timeUntilNextBoss !== 1 ? 's' : ''}`, inline: false }
+            { name: "💰 Your Rewards", value: rewardText, inline: true },
+            { name: "⏰ Next Boss Spawns In", value: `**${timeUntilNextBoss}** minute${timeUntilNextBoss !== 1 ? 's' : ''}`, inline: true }
           )
           .setColor(0xffd700)
           .setTimestamp();
@@ -1530,9 +1478,9 @@ async function handleRaid(interaction) {
     // Check if boss was defeated AND we're the first to mark it (atomic check-and-set)
     const isBossDefeated = raidBoss.currentHp <= 0 && !raidBoss.bossDefeatedTime;
 
-    // Set cooldown - Mudae style (resets at top of next hour)
+    // Set cooldown
     const nextHour = new Date(now);
-    nextHour.setHours(nextHour.getHours() + 1, 0, 0, 0); // Next hour at :00
+    nextHour.setTime(nextHour.getTime() + 1 * 60 * 60 * 1000); // 1 hour cooldown
     
     let newCooldown = cooldown || new Cooldown({ userId, commandName: "raid" });
     newCooldown.endsAt = nextHour;
@@ -1561,9 +1509,12 @@ async function handleRaid(interaction) {
     }
 
     if (isBossDefeated) {
-      // Distribute victory rewards
+      // Calculate XP based on damage dealt
+      const xpEarned = Math.floor(totalDamageDealt * 2);
+      
+      // Distribute rewards to all participants
       const baseReward = 50000;
-      const moneyPool = raidBoss.maxHp * 10; // Scales with boss difficulty
+      const moneyPool = raidBoss.maxHp * 10;
       const totalCycleDamage = raidBoss.leaderboard.reduce((sum, e) => sum + e.damageDealt, 0);
 
       embed.setColor(0xffd700);
@@ -1595,21 +1546,35 @@ async function handleRaid(interaction) {
       }
 
       // WE marked it defeated, so WE distribute rewards to all participants
-      // Re-fetch the boss to get the LATEST participants list (not the stale snapshot from earlier)
+      // Re-fetch the boss to get the LATEST participants list AND leaderboard (not the stale snapshot from earlier)
       const latestBoss = await RaidBoss.findOne({ _id: raidBoss._id });
       console.log(`[RAID] Distributing rewards to ${latestBoss.participantsThisCycle.length} participants:`, latestBoss.participantsThisCycle);
       
       for (let i = 0; i < latestBoss.participantsThisCycle.length; i++) {
-        const participant = latestBoss.participantsThisCycle[i];
-        const profile = await UserProfile.findOne({ userId: participant });
-        if (profile) {
-          const participantEntry = raidBoss.leaderboard.find(e => e.userId === participant);
+        try {
+          const participant = latestBoss.participantsThisCycle[i];
+          const profile = await UserProfile.findOne({ userId: participant });
+          if (!profile) {
+            console.warn(`[RAID] Participant ${participant} profile not found, skipping`);
+            continue;
+          }
+          
+          const participantEntry = latestBoss.leaderboard.find(e => e.userId === participant);
           const damagePercent = participantEntry ? participantEntry.damageDealt / totalCycleDamage : 0;
-          const placement = raidBoss.leaderboard.findIndex(e => e.userId === participant) + 1;
+          const placement = latestBoss.leaderboard.findIndex(e => e.userId === participant) + 1;
           
           // Base reward + damage% of money pool
           const poolReward = Math.floor(moneyPool * damagePercent);
           const reward = baseReward + poolReward;
+          
+          // Calculate XP based on damage dealt
+          const participantDamage = participantEntry ? participantEntry.damageDealt : 0;
+          const participantXpEarned = Math.floor(participantDamage * 2);
+          
+          // TESTING: Log reward calculation
+          console.log(`[RAID REWARDS] ${participant} (Placement: #${placement})`);
+          console.log(`  Damage: ${participantEntry ? participantEntry.damageDealt.toLocaleString() : 0} / ${totalCycleDamage.toLocaleString()} (${(damagePercent * 100).toFixed(2)}%)`);
+          console.log(`  Base: $${baseReward.toLocaleString()} + Pool: $${poolReward.toLocaleString()} = Total: $${reward.toLocaleString()}`);
           
           // Update balance and XP atomically
           await UserProfile.updateOne(
@@ -1617,7 +1582,7 @@ async function handleRaid(interaction) {
             { 
               $inc: { 
                 balance: reward,
-                xp: raidBoss.maxHp
+                xp: participantXpEarned
               }
             }
           );
@@ -1627,25 +1592,57 @@ async function handleRaid(interaction) {
           
           // Item drops (victory)
           let droppedItem = null;
+          const slots = ['weapon', 'head', 'chest', 'hands', 'feet', 'accessory'];
+          const randomSlot = slots[Math.floor(Math.random() * slots.length)];
+          
           if (placement === 1) {
-            droppedItem = await generateItem('Legendary');
+            droppedItem = generateItem(randomSlot, 'Legendary');
           } else if (placement === 2) {
             const legChance = Math.random() < 0.5;
-            droppedItem = await generateItem(legChance ? 'Legendary' : 'Epic');
+            droppedItem = generateItem(randomSlot, legChance ? 'Legendary' : 'Epic');
           } else if (placement === 3) {
-            droppedItem = await generateItem('Epic');
+            droppedItem = generateItem(randomSlot, 'Epic');
           } else if (placement <= 5) {
             const epicChance = Math.random() < 0.3;
-            droppedItem = await generateItem(epicChance ? 'Epic' : 'Rare');
+            droppedItem = generateItem(randomSlot, epicChance ? 'Epic' : 'Rare');
           } else if (placement <= 10) {
-            droppedItem = await generateItem('Rare');
+            droppedItem = generateItem(randomSlot, 'Rare');
           } else {
             const roll = Math.random();
-            if (roll < 0.25) droppedItem = await generateItem('Rare');
-            else if (roll < 0.75) droppedItem = await generateItem('Uncommon');
+            if (roll < 0.25) droppedItem = generateItem(randomSlot, 'Rare');
+            else if (roll < 0.75) droppedItem = generateItem(randomSlot, 'Uncommon');
           }
           
           if (droppedItem && updatedProfile) {
+            // TESTING: Log item drop
+            console.log(`  Item: ${droppedItem.emoji} ${droppedItem.name} (${droppedItem.rarity})`);
+
+            // Ensure item exists in item database
+            const existingDbItem = await Item.findOne({ itemId: droppedItem.itemId });
+            if (!existingDbItem) {
+              try {
+                const newItem = new Item({
+                  itemId: droppedItem.itemId,
+                  name: droppedItem.name,
+                  description: droppedItem.description,
+                  emoji: droppedItem.emoji,
+                  slot: droppedItem.slot,
+                  setName: droppedItem.setName,
+                  element: droppedItem.element,
+                  mainStat: droppedItem.mainStat,
+                  subStats: droppedItem.subStats,
+                  rarity: droppedItem.rarity,
+                  price: droppedItem.price,
+                  shopPrice: droppedItem.shopPrice
+                });
+                await newItem.save();
+              } catch (error) {
+                if (error.code !== 11000) {
+                  console.error('[RAID] Error saving dropped item:', error.message);
+                }
+              }
+            }
+
             // Update inventory atomically
             const existingItem = updatedProfile.inventory.find(i => i.itemId === droppedItem.itemId);
             if (existingItem) {
@@ -1671,7 +1668,7 @@ async function handleRaid(interaction) {
                   bossName: raidBoss.bossName,
                   placement,
                   money: reward,
-                  xp: raidBoss.maxHp,
+                  xp: participantXpEarned,
                   itemId: droppedItem?.itemId || null,
                   itemName: droppedItem?.name || null,
                   itemEmoji: droppedItem?.emoji || null,
@@ -1686,21 +1683,27 @@ async function handleRaid(interaction) {
           if (participant === userId) {
             const itemName = droppedItem ? `${droppedItem.emoji} ${droppedItem.name}` : "None";
             embed.addFields(
-              { name: "💰 Your Rewards", value: `$${reward.toLocaleString()}\n${raidBoss.maxHp.toLocaleString()} XP\n${itemName}`, inline: true }
+              { name: "💰 Your Rewards", value: `$${reward.toLocaleString()}\n${participantXpEarned.toLocaleString()} XP\n${itemName}`, inline: true }
             );
             
             // Check for level-ups after reward distribution
-            const leveledUp = await handleLevelUp(updatedProfile);
-            if (leveledUp) {
-              const levelUpEmbed = new EmbedBuilder()
-                .setTitle("🎉 LEVEL UP!")
-                .setDescription(`You've advanced to **Level ${updatedProfile.level + leveledUp}**!`)
-                .setColor(0xffd700)
-                .setTimestamp();
-              
-              await interaction.followUp({ embeds: [levelUpEmbed] });
+            try {
+              const leveledUp = await handleLevelUp(updatedProfile);
+              if (leveledUp) {
+                const levelUpEmbed = new EmbedBuilder()
+                  .setTitle("🎉 LEVEL UP!")
+                  .setDescription(`You've advanced to **Level ${updatedProfile.level + leveledUp}**!`)
+                  .setColor(0xffd700)
+                  .setTimestamp();
+                
+                await interaction.followUp({ embeds: [levelUpEmbed] });
+              }
+            } catch (levelUpError) {
+              console.error(`[RAID] Level-up error for ${participant}:`, levelUpError.message);
             }
           }
+        } catch (participantError) {
+          console.error(`[RAID] Error distributing rewards to ${participant}:`, participantError.message);
         }
       }
     } else {
@@ -1769,7 +1772,7 @@ async function calculateBossStats() {
     for (let i = 0; i < 10; i++) {
       // Use a dummy enemy for comparison
       const dummyDefense = 50;
-      const damageReduction = dummyDefense / (dummyDefense + 100);
+      const damageReduction = getDamageReduction(dummyDefense);
       let damage = playerAttack * (1 - damageReduction);
       
       // Apply variance
@@ -1808,7 +1811,7 @@ async function calculateBossStats() {
   // Account for player dodge (avg 15%) and defense reduction
   const targetTurnsToKill = 5;
   const avgDodgeChance = 15; // Average dodge chance
-  const damageReductionAgainstBoss = avgPlayerDefense / (avgPlayerDefense + 100);
+  const damageReductionAgainstBoss = getDamageReduction(avgPlayerDefense);
   
   // Boss needs to deal X damage per turn to kill in 5 turns
   let bossAttackNeeded = Math.ceil(avgPlayerHp / targetTurnsToKill);
@@ -1853,23 +1856,40 @@ async function calculateBossStats() {
 async function simulateRaidBattle(playerProfile, raidBoss, playerUser) {
   // Get player stats
   const playerBuffs = await calculateActiveBuffs(playerProfile);
-  const playerAttack = Math.floor((25 + playerProfile.level * 2 + (playerBuffs.attackFlat || 0)) * (1 + playerBuffs.attack));
+  const toPercent = (value) => {
+    const num = Number(value) || 0;
+    return num > 1 ? num : num * 100;
+  };
+  const rawPlayerAttack = (25 + playerProfile.level * 2 + (playerBuffs.attackFlat || 0)) * (1 + playerBuffs.attack);
   const playerDefense = Math.floor((12 + playerProfile.level + (playerBuffs.defenseFlat || 0)) * (1 + playerBuffs.defense));
+  const playerAttack = Math.floor(rawPlayerAttack * getOffenseMultiplierFromDefense(playerDefense));
   const playerCrit = 5 + (playerBuffs.critChance || 0);
   const playerCritDMG = 100 + (playerBuffs.critDMG || 0);
-  const playerLuck = playerBuffs.luck || 0;
   let playerHp = Math.floor((250 + playerProfile.level * 15 + (playerBuffs.hpFlat || 0)) * (1 + (playerBuffs.hpPercent || 0)));
   const maxPlayerHp = playerHp;
 
   // Boss stats
   let bossHp = raidBoss.currentHp;
   const maxBossHp = raidBoss.maxHp;
-  const bossDodge = Math.min(5 + (playerLuck * 10), 30); // Boss dodge scales with player luck
+  const bossDodge = 0; // No hardcoded boss dodge
   
   let totalPlayerDamage = 0;
   let turn = 0;
   const maxTurns = 100;
   let combatLog = "";
+
+  // Combat stats for logging
+  let statLog = {
+    baseDamageHits: 0,
+    critHits: 0,
+    crushingBlows: 0,
+    overloads: 0,
+    lifestealProcs: 0,
+    bossDodges: 0,
+    totalCrushingBlowDamage: 0,
+    totalOverloadDamage: 0,
+    totalLifestealHealing: 0
+  };
 
   while (playerHp > 0 && bossHp > 0 && turn < maxTurns) {
     turn++;
@@ -1878,59 +1898,77 @@ async function simulateRaidBattle(playerProfile, raidBoss, playerUser) {
     // Check dodge
     if (Math.random() * 100 < bossDodge) {
       combatLog += `💨 **${raidBoss.bossName}** dodges!\n`;
+      statLog.bossDodges++;
     } else {
       // Calculate damage
       const variance = 0.8 + (Math.random() * 0.4);
-      const damageReduction = raidBoss.defense / (raidBoss.defense + 100);
-      let damage = Math.floor(playerAttack * (1 - damageReduction) * variance);
-      if (damage < 1) damage = 1;
+      const damageReduction = getDamageReduction(raidBoss.defense);
+      let baseDamage = Math.floor(playerAttack * (1 - damageReduction) * variance);
+      if (baseDamage < 1) baseDamage = 1;
+
+      let totalHitDamage = baseDamage;
+      statLog.baseDamageHits++;
 
       // Check for crit
       const isCrit = Math.random() * 100 < playerCrit;
       if (isCrit) {
-        damage = Math.floor(damage * (1 + playerCritDMG / 100));
+        totalHitDamage = Math.floor(totalHitDamage * (1 + playerCritDMG / 100));
+        statLog.critHits++;
       }
 
-      // Crushing Blow proc
+      // Proc messages (gear/reaction-based only)
       let procMessages = [];
-      if (Math.random() * 100 < (15 + playerLuck * 5)) {
-        const bonusDamage = Math.floor(raidBoss.defense * 0.5 * variance);
-        damage += bonusDamage;
-        procMessages.push("💥 CRUSHING BLOW");
+
+      // Check for Overload reaction (Pyro-Electro)
+      // True damage scaling: 60% of player attack
+      const playerReaction = playerBuffs.setInfo?.elementalReaction;
+      let overloadDamage = 0;
+      if (playerReaction && playerReaction.name === "Overload" && Math.random() < (playerReaction.procChance || 0.30)) {
+        overloadDamage = Math.floor(playerAttack * 0.60);
+        totalHitDamage += overloadDamage;
+        statLog.overloads++;
+        statLog.totalOverloadDamage += overloadDamage;
+        procMessages.push(`⚡ OVERLOAD (+${overloadDamage})`);
       }
 
-      // Lifesteal
-      if (Math.random() * 100 < (10 + playerLuck * 3)) {
-        const heal = Math.floor(damage * 0.3);
-        playerHp = Math.min(playerHp + heal, maxPlayerHp);
-        procMessages.push(`💚 LIFESTEAL (+${heal})`);
+      // Lifesteal (only if player has lifesteal stats)
+      let lifestealHealing = 0;
+      const lifestealChance = playerBuffs.lifestealChance || 0;
+      const lifestealPercent = playerBuffs.lifesteal || 0;
+      const lifestealChancePct = lifestealChance > 1 ? lifestealChance : lifestealChance * 100;
+      const lifestealPercentPct = lifestealPercent > 1 ? lifestealPercent : lifestealPercent * 100;
+
+      if (lifestealChancePct > 0 && lifestealPercentPct > 0) {
+        if (Math.random() * 100 < lifestealChancePct) {
+          lifestealHealing = Math.floor(totalHitDamage * (lifestealPercentPct / 100));
+          playerHp = Math.min(playerHp + lifestealHealing, maxPlayerHp);
+          statLog.lifestealProcs++;
+          statLog.totalLifestealHealing += lifestealHealing;
+          procMessages.push(`💚 LIFESTEAL (+${lifestealHealing})`);
+        }
       }
 
-      bossHp -= damage;
-      totalPlayerDamage += damage;
+      bossHp -= totalHitDamage;
+      totalPlayerDamage += totalHitDamage;
 
       const procText = procMessages.length > 0 ? ` [${procMessages.join(", ")}]` : "";
-      combatLog += `⚔️ **${playerUser.username}** attacks for **${damage}** damage${isCrit ? " (CRIT!)" : ""}${procText}\n`;
+      combatLog += `⚔️ **${playerUser.username}** attacks for **${totalHitDamage}** damage${isCrit ? " (CRIT!)" : ""}${procText}\n`;
+      combatLog += `   └─ Base: ${baseDamage}${isCrit ? ` → Crit: ${Math.floor(baseDamage * (1 + playerCritDMG / 100))}` : ""}${overloadDamage > 0 ? ` + OL: ${overloadDamage}` : ""}\n`;
     }
 
     if (bossHp <= 0) break;
 
     // BOSS'S TURN - Counter-attack
     // Check player dodge
-    const playerDodge = Math.min(5 + (playerLuck * 10), 30);
+    const playerDodge = Math.min(toPercent(playerBuffs.dodge || 0), 50);
     if (Math.random() * 100 < playerDodge) {
       combatLog += `💨 **${playerUser.username}** dodges!\n`;
     } else {
       // Calculate boss damage
       const variance = 0.8 + (Math.random() * 0.4);
-      const bossDamageReduction = playerDefense / (playerDefense + 100);
+      const bossDamageReduction = getDamageReduction(playerDefense);
       let bossDamage = Math.floor(raidBoss.attack * (1 - bossDamageReduction) * variance);
       if (bossDamage < 1) bossDamage = 1;
-
-      // Boss can crit too (10% base)
-      if (Math.random() * 100 < 10) {
-        bossDamage = Math.floor(bossDamage * 1.5);
-      }
 
       playerHp -= bossDamage;
       combatLog += `🔥 **${raidBoss.bossName}** attacks for **${bossDamage}** damage!\n`;
@@ -1948,14 +1986,58 @@ async function simulateRaidBattle(playerProfile, raidBoss, playerUser) {
   } else if (bossDefeated) {
     combatLog += `\n🐉 **${raidBoss.bossName}** was defeated!`;
   } else {
-    combatLog += `\n⏰ Battle ended - Max turns reached`;
+    combatLog += `\n⏰ Battle ended - Max turns (${maxTurns}) reached`;
   }
+
+  // Add summary stats at the end
+  combatLog += `\n\n📊 **BATTLE SUMMARY**\n`;
+  combatLog += `Total Turns: ${turn}\n`;
+  combatLog += `Total Damage: **${totalPlayerDamage.toLocaleString()}**\n`;
+  combatLog += `Base Hits: ${statLog.baseDamageHits} | Crits: ${statLog.critHits} (${Math.round(statLog.critHits/statLog.baseDamageHits*100)}%)\n`;
+  combatLog += `Crushing Blows: ${statLog.crushingBlows} (+${statLog.totalCrushingBlowDamage.toLocaleString()})\n`;
+  if (statLog.overloads > 0) {
+    combatLog += `Overloads: ${statLog.overloads} (+${statLog.totalOverloadDamage.toLocaleString()})\n`;
+  }
+  if (statLog.totalLifestealHealing > 0) {
+    combatLog += `Lifesteal Heals: ${statLog.lifestealProcs} (+${statLog.totalLifestealHealing.toLocaleString()} HP)\n`;
+  }
+  combatLog += `Boss Dodges: ${statLog.bossDodges}\n`;
+
+  // Log comprehensive stats to console
+  console.log(`\n[RAID BATTLE STATS] ${playerUser.username}`);
+  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  console.log(`Total Damage: ${totalPlayerDamage.toLocaleString()}`);
+  console.log(`Total Turns: ${turn}/${maxTurns}`);
+  console.log(`Average Damage/Turn: ${Math.round(totalPlayerDamage/turn).toLocaleString()}`);
+  console.log(`\n⚔️ DAMAGE BREAKDOWN:`);
+  console.log(`  Base Hits: ${statLog.baseDamageHits} hits`);
+  console.log(`  Critical Hits: ${statLog.critHits}/${statLog.baseDamageHits} (${Math.round(statLog.critHits/statLog.baseDamageHits*100)}% crit rate)`);
+  console.log(`  Crushing Blows: ${statLog.crushingBlows} procs (+${statLog.totalCrushingBlowDamage.toLocaleString()} damage, avg: ${statLog.crushingBlows > 0 ? Math.round(statLog.totalCrushingBlowDamage/statLog.crushingBlows).toLocaleString() : 0}/proc)`);
+  if (statLog.overloads > 0) {
+    console.log(`  Overloads: ${statLog.overloads} procs (+${statLog.totalOverloadDamage.toLocaleString()} damage, avg: ${Math.round(statLog.totalOverloadDamage/statLog.overloads).toLocaleString()}/proc)`);
+  }
+  console.log(`\n💚 UTILITY:`);
+  if (statLog.totalLifestealHealing > 0) {
+    console.log(`  Lifesteal: ${statLog.lifestealProcs} heals (+${statLog.totalLifestealHealing.toLocaleString()} HP, avg: ${Math.round(statLog.totalLifestealHealing/statLog.lifestealProcs).toLocaleString()}/heal)`);
+  }
+  console.log(`  Boss Dodges: ${statLog.bossDodges} times`);
+  console.log(`\n📊 DAMAGE COMPOSITION:`);
+  const baselineEstimate = statLog.baseDamageHits * Math.round(totalPlayerDamage/turn * 0.7); // Rough estimate
+  const cbPercent = Math.round(statLog.totalCrushingBlowDamage / totalPlayerDamage * 100);
+  const olPercent = statLog.overloads > 0 ? Math.round(statLog.totalOverloadDamage / totalPlayerDamage * 100) : 0;
+  const basePercent = 100 - cbPercent - olPercent;
+  console.log(`  Base Damage: ~${basePercent}% (${Math.round(totalPlayerDamage * basePercent / 100).toLocaleString()})`);
+  console.log(`  Crushing Blows: ${cbPercent}% (${statLog.totalCrushingBlowDamage.toLocaleString()})`);
+  if (statLog.overloads > 0) {
+    console.log(`  Overloads: ${olPercent}% (${statLog.totalOverloadDamage.toLocaleString()})`);
+  }
+  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
 
   return {
     totalPlayerDamage,
     playerDefeated,
     bossDefeated,
-    combatLog: combatLog.slice(0, 1024) // Limit to 1024 chars for embed
+    combatLog: combatLog.slice(0, 4096) // Limit to 4096 chars for embed
   };
 }
 
