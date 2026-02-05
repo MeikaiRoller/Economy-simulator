@@ -6,6 +6,7 @@ const RaidBoss = require("../../schema/RaidBoss");
 const calculateActiveBuffs = require("../../utils/calculateBuffs");
 const { default: prettyMs } = require("pretty-ms");
 const { generateItem, rollRarity } = require("../../utils/generateItem");
+const { applyElementalReaction } = require("../../utils/elementalReactions");
 
 // Store active duel challenges (in-memory)
 const activeChallenges = new Map();
@@ -235,18 +236,30 @@ async function handleAdventure(interaction) {
     // Fight simulation
     while (playerCurrentHp > 0 && enemyHp > 0) {
       // Player attacks
-      let damage = playerAttack - enemy.defense;
+      const variance = 0.8 + (Math.random() * 0.4); // 0.8 to 1.2
+      const damageReduction = getDamageReduction(enemy.defense);
+      let damage = Math.floor(playerAttack * (1 - damageReduction) * variance);
+      if (damage < 5) damage = 5;
+      
+      // Apply elemental reactions
+      const playerReaction = activeBuffs.setInfo?.elementalReaction;
+      const reactionResult = applyElementalReaction(damage, playerReaction);
+      damage = reactionResult.damage;
+      
+      // Check for crit
       if (Math.random() * 100 < playerCrit) {
-        damage *= 2; // Critical hit
+        damage = Math.floor(damage * 2); // Critical hit
         criticalHits++;
       }
-      if (damage < 5) damage = 5; // minimum damage
+      
       enemyHp -= damage;
 
       if (enemyHp <= 0) break;
 
       // Enemy attacks
-      let enemyDamage = enemy.attack - playerDefense;
+      const enemyVariance = 0.8 + (Math.random() * 0.4);
+      const playerDamageReduction = getDamageReduction(playerDefense);
+      let enemyDamage = Math.floor(enemy.attack * (1 - playerDamageReduction) * enemyVariance);
       if (enemyDamage < 5) enemyDamage = 5;
       playerCurrentHp -= enemyDamage;
     }
@@ -1041,20 +1054,14 @@ async function simulatePvPCombatRealTime(challengerProfile, opponentProfile, cha
 
         let procMessages = [];
 
-        // Check for elemental reaction procs
-        if (challengerReaction && Math.random() < (challengerReaction.procChance || 0.15)) {
-          if (challengerReaction.damageMultiplier) {
-            damage = Math.floor(damage * challengerReaction.damageMultiplier);
-            procMessages.push(`🌟 ${challengerReaction.name}`);
-          }
-          if (challengerReaction.bonusDamage) {
-            damage += challengerReaction.bonusDamage;
-            procMessages.push(`🌟 ${challengerReaction.name}`);
-          }
-          if (challengerReaction.stunChance && Math.random() < challengerReaction.stunChance) {
-            opponentStunned = true;
-            procMessages.push(`🌟 ${challengerReaction.name}`);
-          }
+        // Apply elemental reactions using modular system
+        const reactionResult = applyElementalReaction(damage, challengerReaction);
+        damage = reactionResult.damage;
+        procMessages = reactionResult.procs;
+        
+        // Handle stun effects
+        if (reactionResult.effects.stun) {
+          opponentStunned = true;
         }
 
         const critChance = challengerCrit + (turn <= 3 ? phaseBonus.critBonus : 0);
@@ -1114,20 +1121,14 @@ async function simulatePvPCombatRealTime(challengerProfile, opponentProfile, cha
 
         let procMessages = [];
 
-        // Check for elemental reaction procs
-        if (opponentReaction && Math.random() < (opponentReaction.procChance || 0.15)) {
-          if (opponentReaction.damageMultiplier) {
-            oppDamage = Math.floor(oppDamage * opponentReaction.damageMultiplier);
-            procMessages.push(`🌟 ${opponentReaction.name}`);
-          }
-          if (opponentReaction.bonusDamage) {
-            oppDamage += opponentReaction.bonusDamage;
-            procMessages.push(`🌟 ${opponentReaction.name}`);
-          }
-          if (opponentReaction.stunChance && Math.random() < opponentReaction.stunChance) {
-            challengerStunned = true;
-            procMessages.push(`🌟 ${opponentReaction.name}`);
-          }
+        // Apply elemental reactions using modular system
+        const oppReactionResult = applyElementalReaction(oppDamage, opponentReaction);
+        oppDamage = oppReactionResult.damage;
+        procMessages = oppReactionResult.procs;
+        
+        // Handle stun effects
+        if (oppReactionResult.effects.stun) {
+          challengerStunned = true;
         }
 
         const critChance = opponentCrit + (turn <= 3 ? phaseBonus.critBonus : 0);
@@ -1922,19 +1923,17 @@ async function simulateRaidBattle(playerProfile, raidBoss, playerUser) {
         statLog.critHits++;
       }
 
-      // Proc messages (gear/reaction-based only)
-      let procMessages = [];
-
-      // Check for Overload reaction (Pyro-Electro)
-      // True damage scaling: 60% of player attack
+      // Apply elemental reactions using modular system
       const playerReaction = playerBuffs.setInfo?.elementalReaction;
-      let overloadDamage = 0;
-      if (playerReaction && playerReaction.name === "Overload" && Math.random() < (playerReaction.procChance || 0.30)) {
-        overloadDamage = Math.floor(playerAttack * 0.60);
-        totalHitDamage += overloadDamage;
+      const reactionResult = applyElementalReaction(totalHitDamage, playerReaction);
+      totalHitDamage = reactionResult.damage;
+      let procMessages = reactionResult.procs;
+      
+      // Track Overload procs for stats (legacy compatibility)
+      if (playerReaction && playerReaction.name === "Overload" && reactionResult.procs.length > 0) {
         statLog.overloads++;
+        const overloadDamage = totalHitDamage - baseDamage - (isCrit ? Math.floor(baseDamage * (playerCritDMG / 100)) - baseDamage : 0);
         statLog.totalOverloadDamage += overloadDamage;
-        procMessages.push(`⚡ OVERLOAD (+${overloadDamage})`);
       }
 
       // Lifesteal (only if player has lifesteal stats)
@@ -1959,7 +1958,7 @@ async function simulateRaidBattle(playerProfile, raidBoss, playerUser) {
 
       const procText = procMessages.length > 0 ? ` [${procMessages.join(", ")}]` : "";
       combatLog += `⚔️ **${playerUser.username}** attacks for **${totalHitDamage}** damage${isCrit ? " (CRIT!)" : ""}${procText}\n`;
-      combatLog += `   └─ Base: ${baseDamage}${isCrit ? ` → Crit: ${Math.floor(baseDamage * (1 + playerCritDMG / 100))}` : ""}${overloadDamage > 0 ? ` + OL: ${overloadDamage}` : ""}\n`;
+      combatLog += `   └─ Base: ${baseDamage}${isCrit ? ` → Crit: ${Math.floor(baseDamage * (1 + playerCritDMG / 100))}` : ""}${procMessages.length > 0 ? ` + Reaction` : ""}\n`;
     }
 
     if (bossHp <= 0) break;

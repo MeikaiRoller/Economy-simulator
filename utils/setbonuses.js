@@ -145,13 +145,6 @@ const ELEMENTAL_REACTIONS = {
     damageMultiplier: 2.0,
     procChance: 0.50
   },
-  "electro-hydro": {
-    name: "Electro-Charged",
-    effect: "Continuous damage over time",
-    dotDamage: 20,
-    duration: 3,
-    procChance: 0.60
-  },
   "electro-pyro": {
     name: "Overload",
     effect: "Bonus AoE damage + 20% stun chance",
@@ -165,18 +158,63 @@ const ELEMENTAL_REACTIONS = {
     damageMultiplier: 1.5,
     procChance: 0.70
   },
-  "hydro-electro": {
+  
+  // ==========================================
+  // UPDATE 1 REACTIONS (Disabled - Coming Soon)
+  // ==========================================
+  "anemo-electro": {
+    name: "Electro Swirl",
+    effect: "Reflect 15% damage + energy boost",
+    reflectDamage: 0.15,
+    energyBoost: 15,
+    procChance: 0.50
+  },
+  "anemo-geo": {
+    name: "Geo Swirl",
+    effect: "Reflect 15% damage + 15% defense boost",
+    reflectDamage: 0.15,
+    statBuff: { type: 'defense', value: 0.15 },
+    duration: 3,
+    procChance: 0.50
+  },
+  "cryo-geo": {
+    name: "Crystallize (Cryo)",
+    effect: "Shield + 8% crit rate boost",
+    shieldPercent: 0.20,
+    statBuff: { type: 'critRate', value: 8 },
+    duration: 3,
+    procChance: 0.50
+  },
+  "electro-geo": {
+    name: "Crystallize (Electro)",
+    effect: "Shield + 15 energy boost",
+    shieldPercent: 0.20,
+    energyBoost: 15,
+    duration: 3,
+    procChance: 0.50
+  },
+  "electro-hydro": {
     name: "Electro-Charged",
     effect: "Continuous damage over time",
-    dotDamage: 20,  // Buffed from 15
+    dotDamage: 20,
     duration: 3,
-    procChance: 0.60  // Buffed from 0.20
+    procChance: 0.60
   },
-  "pyro-cryo": {
-    name: "Melt",
-    effect: "Next attack deals 2x damage",
-    damageMultiplier: 2.0,
-    procChance: 0.50  // Buffed from 0.15
+  "geo-hydro": {
+    name: "Crystallize (Hydro)",
+    effect: "Shield + 15% HP boost",
+    shieldPercent: 0.20,
+    statBuff: { type: 'hp', value: 0.15 },
+    duration: 3,
+    procChance: 0.50
+  },
+  "geo-pyro": {
+    name: "Crystallize (Pyro)",
+    effect: "Shield + 15% attack boost",
+    shieldPercent: 0.20,
+    statBuff: { type: 'attack', value: 0.15 },
+    duration: 3,
+    procChance: 0.50
   }
 };
 
