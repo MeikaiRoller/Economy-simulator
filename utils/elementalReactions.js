@@ -62,7 +62,7 @@ function applyElementalReaction(baseDamage, reactionData, attacker = null, defen
   // ====================================
   // STUN EFFECTS (Overload, Freeze)
   // ====================================
-  if (reactionData.stunChance && Math.random() < reactionData.stunChance) {
+  if (reactionData.stunChance) {
     effects.stun = true;
     procs.push(`💫 ${reactionData.name} STUN`);
   }
