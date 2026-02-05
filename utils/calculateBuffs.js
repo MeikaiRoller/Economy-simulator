@@ -132,8 +132,8 @@ async function calculateActiveBuffs(userProfile) {
   buffs.lifestealChance += setBonuses.lifestealChance || 0;
   // 6. Final safeguard clamps to prevent extreme values
   buffs.attack = clamp(buffs.attack, 0, 10);
-  buffs.defense = clamp(buffs.defense, 0, 10);
-  buffs.hpPercent = clamp(buffs.hpPercent, 0, 10);
+  buffs.defense = clamp(buffs.defense, 0, 20); // Increased for tank builds with high defense% substats
+  buffs.hpPercent = clamp(buffs.hpPercent, 0, 20); // Increased for tank builds with high HP% substats
   buffs.critChance = clamp(buffs.critChance, 0, 100);
   buffs.critDMG = clamp(buffs.critDMG, 0, 500);
   buffs.dodge = clamp(buffs.dodge, 0, 50);
