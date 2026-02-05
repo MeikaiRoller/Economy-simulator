@@ -27,17 +27,17 @@ const UserProfileSchema = new mongoose.Schema({
   level: { type: Number, default: 1 }, // Player level
 
   buffs: {
-    lootBoost: { type: Number, default: 0, min: 0, max: 10 },
-    findRateBoost: { type: Number, default: 0, min: 0, max: 10 },
+    lootBoost: { type: Number, default: 0, min: 0, max: 20 },
+    findRateBoost: { type: Number, default: 0, min: 0, max: 20 },
     cooldownReduction: { type: Number, default: 0, min: 0, max: 1 },
-    attackBoost: { type: Number, default: 0, min: 0, max: 5 },
-    defenseBoost: { type: Number, default: 0, min: 0, max: 5 },
-    magicBoost: { type: Number, default: 0, min: 0, max: 5 },
-    magicDefenseBoost: { type: Number, default: 0, min: 0, max: 5 },
+    attackBoost: { type: Number, default: 0, min: 0, max: 20 },
+    defenseBoost: { type: Number, default: 0, min: 0, max: 20 },
+    magicBoost: { type: Number, default: 0, min: 0, max: 20 },
+    magicDefenseBoost: { type: Number, default: 0, min: 0, max: 20 },
     criticalChance: { type: Number, default: 0, min: 0, max: 100 },
-    xpBoost: { type: Number, default: 0, min: 0, max: 10 },
-    healingBoost: { type: Number, default: 0, min: 0, max: 5 },
-    luckBoost: { type: Number, default: 0, min: 0, max: 5 },
+    xpBoost: { type: Number, default: 0, min: 0, max: 20 },
+    healingBoost: { type: Number, default: 0, min: 0, max: 20 },
+    luckBoost: { type: Number, default: 0, min: 0, max: 20 },
   },
 
   inventory: [

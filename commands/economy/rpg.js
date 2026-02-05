@@ -421,7 +421,7 @@ async function handleLevelUp(userProfile) {
     userProfile.buffs.defenseBoost += 0.1;
     userProfile.buffs.magicBoost += 0.1;
     userProfile.buffs.magicDefenseBoost += 0.1;
-    userProfile.buffs.criticalChance += 0.1;
+    // criticalChance removed - should come from gear only
     userProfile.buffs.healingBoost += 0.1;
     userProfile.buffs.xpBoost += 0.1;
   }
