@@ -246,6 +246,12 @@ async function handleAdventure(interaction) {
       const reactionResult = applyElementalReaction(damage, playerReaction);
       damage = reactionResult.damage;
       
+      // Apply healing from Swirl reactions
+      if (reactionResult.effects.heal) {
+        const healAmount = Math.floor(damage * reactionResult.effects.heal.percent);
+        playerCurrentHp = Math.min(playerCurrentHp + healAmount, playerMaxHp);
+      }
+      
       // Check for crit
       if (Math.random() * 100 < playerCrit) {
         damage = Math.floor(damage * 2); // Critical hit
@@ -256,7 +262,7 @@ async function handleAdventure(interaction) {
 
       if (enemyHp <= 0) break;
 
-      // Enemy attacks
+      // Enemy attacks (no defense debuff for adventure since enemy doesn't have complex stats)
       const enemyVariance = 0.8 + (Math.random() * 0.4);
       const playerDamageReduction = getDamageReduction(playerDefense);
       let enemyDamage = Math.floor(enemy.attack * (1 - playerDamageReduction) * enemyVariance);
@@ -970,6 +976,10 @@ async function simulatePvPCombatRealTime(challengerProfile, opponentProfile, cha
   let challengerStunned = false;
   let opponentStunned = false;
   
+  // Debuff tracking for Superconduct
+  let opponentDefenseDebuff = { active: false, multiplier: 1, turnsRemaining: 0 };
+  let challengerDefenseDebuff = { active: false, multiplier: 1, turnsRemaining: 0 };
+  
   let lastChallengerAction = "";
   let lastOpponentAction = "";
   let currentPhase = "⚡ OPENING STRIKE";
@@ -1165,6 +1175,20 @@ async function simulatePvPCombatRealTime(challengerProfile, opponentProfile, cha
     await updateDisplay("⚔️ DUEL IN PROGRESS", null);
     
     if (challengerHp <= 0 || opponentHp <= 0) break;
+    
+    // Decrement debuff timers
+    if (challengerDefenseDebuff.active) {
+      challengerDefenseDebuff.turnsRemaining--;
+      if (challengerDefenseDebuff.turnsRemaining <= 0) {
+        challengerDefenseDebuff.active = false;
+      }
+    }
+    if (opponentDefenseDebuff.active) {
+      opponentDefenseDebuff.turnsRemaining--;
+      if (opponentDefenseDebuff.turnsRemaining <= 0) {
+        opponentDefenseDebuff.active = false;
+      }
+    }
     
     await new Promise(resolve => setTimeout(resolve, 1500));
   }
@@ -1878,12 +1902,16 @@ async function simulateRaidBattle(playerProfile, raidBoss, playerUser) {
   // Boss stats
   let bossHp = raidBoss.currentHp;
   const maxBossHp = raidBoss.maxHp;
+  
+  // Debuff tracking
+  let bossDefenseDebuff = { active: false, multiplier: 1, turnsRemaining: 0 };
   const bossDodge = 0; // No hardcoded boss dodge
   
   let totalPlayerDamage = 0;
   let turn = 0;
   const maxTurns = 100;
   let combatLog = "";
+  let bossStunned = false;
 
   // Combat stats for logging
   let statLog = {
@@ -1909,7 +1937,11 @@ async function simulateRaidBattle(playerProfile, raidBoss, playerUser) {
     } else {
       // Calculate damage
       const variance = 0.8 + (Math.random() * 0.4);
-      const damageReduction = getDamageReduction(raidBoss.defense);
+      let bossDefenseMultiplier = 1;
+      if (bossDefenseDebuff.active) {
+        bossDefenseMultiplier = bossDefenseDebuff.multiplier;
+      }
+      const damageReduction = getDamageReduction(raidBoss.defense * bossDefenseMultiplier);
       let baseDamage = Math.floor(playerAttack * (1 - damageReduction) * variance);
       if (baseDamage < 1) baseDamage = 1;
 
@@ -1928,6 +1960,27 @@ async function simulateRaidBattle(playerProfile, raidBoss, playerUser) {
       const reactionResult = applyElementalReaction(totalHitDamage, playerReaction);
       totalHitDamage = reactionResult.damage;
       let procMessages = reactionResult.procs;
+      
+      // Apply stun effect from reaction
+      if (reactionResult.effects.stun) {
+        bossStunned = true;
+        procMessages.push(`💫 STUN`);
+      }
+      
+      // Apply Superconduct defense reduction
+      if (reactionResult.effects.defenseReduction && !bossDefenseDebuff.active) {
+        bossDefenseDebuff.active = true;
+        bossDefenseDebuff.multiplier = 1 - reactionResult.effects.defenseReduction.percent;
+        bossDefenseDebuff.turnsRemaining = reactionResult.effects.defenseReduction.duration;
+        procMessages.push(`🔻 DEF REDUCED`);
+      }
+      
+      // Apply healing from Hydro Swirl
+      if (reactionResult.effects.heal) {
+        const healAmount = Math.floor(totalHitDamage * reactionResult.effects.heal.percent);
+        playerHp = Math.min(playerHp + healAmount, maxPlayerHp);
+        procMessages.push(`💚 HEAL +${healAmount}`);
+      }
       
       // Track Overload procs for stats (legacy compatibility)
       if (playerReaction && playerReaction.name === "Overload" && reactionResult.procs.length > 0) {
@@ -1964,19 +2017,34 @@ async function simulateRaidBattle(playerProfile, raidBoss, playerUser) {
     if (bossHp <= 0) break;
 
     // BOSS'S TURN - Counter-attack
-    // Check player dodge
-    const playerDodge = Math.min(toPercent(playerBuffs.dodge || 0), 50);
-    if (Math.random() * 100 < playerDodge) {
-      combatLog += `💨 **${playerUser.username}** dodges!\n`;
+    // Check if boss is stunned
+    if (bossStunned) {
+      combatLog += `💫 **${raidBoss.bossName}** is stunned and cannot attack!\n`;
+      bossStunned = false; // Reset stun flag
     } else {
-      // Calculate boss damage
-      const variance = 0.8 + (Math.random() * 0.4);
-      const bossDamageReduction = getDamageReduction(playerDefense);
-      let bossDamage = Math.floor(raidBoss.attack * (1 - bossDamageReduction) * variance);
-      if (bossDamage < 1) bossDamage = 1;
+      // Check player dodge
+      const playerDodge = Math.min(toPercent(playerBuffs.dodge || 0), 50);
+      if (Math.random() * 100 < playerDodge) {
+        combatLog += `💨 **${playerUser.username}** dodges!\n`;
+      } else {
+        // Calculate boss damage
+        const variance = 0.8 + (Math.random() * 0.4);
+        const bossDamageReduction = getDamageReduction(playerDefense);
+        let bossDamage = Math.floor(raidBoss.attack * (1 - bossDamageReduction) * variance);
+        if (bossDamage < 1) bossDamage = 1;
 
-      playerHp -= bossDamage;
-      combatLog += `🔥 **${raidBoss.bossName}** attacks for **${bossDamage}** damage!\n`;
+        playerHp -= bossDamage;
+        combatLog += `🔥 **${raidBoss.bossName}** attacks for **${bossDamage}** damage!\n`;
+      }
+    }
+
+    // Decrement debuff timers
+    if (bossDefenseDebuff.active) {
+      bossDefenseDebuff.turnsRemaining--;
+      if (bossDefenseDebuff.turnsRemaining <= 0) {
+        bossDefenseDebuff.active = false;
+        combatLog += `🔄 Boss defense restored\n`;
+      }
     }
 
     // Add spacing for readability
