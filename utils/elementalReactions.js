@@ -52,10 +52,12 @@ function applyElementalReaction(baseDamage, reactionData, attacker = null, defen
   }
 
   // ====================================
-  // BONUS FLAT DAMAGE (Overload)
+  // BONUS SCALED DAMAGE (Overload)
+  // Scales with attacker's attack stat, ignores defense
   // ====================================
-  if (reactionData.bonusDamage) {
-    finalDamage += reactionData.bonusDamage;
+  if (reactionData.bonusDamage && attacker) {
+    const bonusDmg = Math.floor(attacker.attack * reactionData.bonusDamage);
+    finalDamage += bonusDmg;
     procs.push(`⚡ ${reactionData.name}`);
   }
 
@@ -63,8 +65,10 @@ function applyElementalReaction(baseDamage, reactionData, attacker = null, defen
   // STUN EFFECTS (Overload, Freeze)
   // ====================================
   if (reactionData.stunChance) {
-    effects.stun = true;
-    procs.push(`💫 ${reactionData.name} STUN`);
+    if (Math.random() < reactionData.stunChance) {
+      effects.stun = true;
+      procs.push(`💫 ${reactionData.name} STUN`);
+    }
   }
 
   // ====================================

@@ -112,51 +112,51 @@ const ELEMENTAL_REACTIONS = {
     name: "Cryo Swirl",
     effect: "Reflect 15% damage + reduce enemy dodge",
     reflectDamage: 0.15,
-    procChance: 0.50
+    procChance: 0.70
   },
   "anemo-hydro": {
     name: "Hydro Swirl",
     effect: "Reflect 15% damage + heal 8% of damage",
     reflectDamage: 0.15,
     healPercent: 0.08,
-    procChance: 0.50
+    procChance: 0.70
   },
   "anemo-pyro": {
     name: "Pyro Swirl",
     effect: "Reflect 15% damage to attacker",
     reflectDamage: 0.15,
-    procChance: 0.50
+    procChance: 0.70
   },
   "cryo-electro": {
     name: "Superconduct",
     effect: "Reduce enemy defense by 40% for 3 turns",
     defenseReduction: 0.40,
-    procChance: 0.60
+    procChance: 0.80
   },
   "cryo-hydro": {
     name: "Freeze",
-    effect: "25% chance to stun enemy for 1 turn",
-    stunChance: 0.25,
-    procChance: 0.50
+    effect: "50% chance to stun enemy for 1 turn",
+    stunChance: 0.50,
+    procChance: 0.70
   },
   "cryo-pyro": {
     name: "Melt",
     effect: "Next attack deals 2.0x damage",
     damageMultiplier: 2.0,
-    procChance: 0.50
+    procChance: 0.70
   },
   "electro-pyro": {
     name: "Overload",
-    effect: "Bonus AoE damage + 20% stun chance",
-    bonusDamage: 75,
-    stunChance: 0.20,
-    procChance: 0.60
+    effect: "Add 100% of attack as bonus damage (ignores defense) + 50% stun chance",
+    bonusDamage: 1.0,
+    stunChance: 0.50,
+    procChance: 0.80
   },
   "hydro-pyro": {
     name: "Vaporize",
     effect: "Next attack deals 1.5x damage",
     damageMultiplier: 1.5,
-    procChance: 0.70
+    procChance: 0.90
   },
   
   // ==========================================
@@ -167,7 +167,7 @@ const ELEMENTAL_REACTIONS = {
     effect: "Reflect 15% damage + energy boost",
     reflectDamage: 0.15,
     energyBoost: 15,
-    procChance: 0.50
+    procChance: 0.70
   },
   "anemo-geo": {
     name: "Geo Swirl",
@@ -175,7 +175,7 @@ const ELEMENTAL_REACTIONS = {
     reflectDamage: 0.15,
     statBuff: { type: 'defense', value: 0.15 },
     duration: 3,
-    procChance: 0.50
+    procChance: 0.70
   },
   "cryo-geo": {
     name: "Crystallize (Cryo)",
@@ -183,7 +183,7 @@ const ELEMENTAL_REACTIONS = {
     shieldPercent: 0.20,
     statBuff: { type: 'critRate', value: 8 },
     duration: 3,
-    procChance: 0.50
+    procChance: 0.70
   },
   "electro-geo": {
     name: "Crystallize (Electro)",
@@ -191,14 +191,14 @@ const ELEMENTAL_REACTIONS = {
     shieldPercent: 0.20,
     energyBoost: 15,
     duration: 3,
-    procChance: 0.50
+    procChance: 0.70
   },
   "electro-hydro": {
     name: "Electro-Charged",
     effect: "Continuous damage over time",
     dotDamage: 20,
     duration: 3,
-    procChance: 0.60
+    procChance: 0.80
   },
   "geo-hydro": {
     name: "Crystallize (Hydro)",
@@ -206,7 +206,7 @@ const ELEMENTAL_REACTIONS = {
     shieldPercent: 0.20,
     statBuff: { type: 'hp', value: 0.15 },
     duration: 3,
-    procChance: 0.50
+    procChance: 0.70
   },
   "geo-pyro": {
     name: "Crystallize (Pyro)",
@@ -214,7 +214,7 @@ const ELEMENTAL_REACTIONS = {
     shieldPercent: 0.20,
     statBuff: { type: 'attack', value: 0.15 },
     duration: 3,
-    procChance: 0.50
+    procChance: 0.70
   }
 };
 

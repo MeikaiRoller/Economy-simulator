@@ -1909,7 +1909,7 @@ async function simulateRaidBattle(playerProfile, raidBoss, playerUser) {
   
   let totalPlayerDamage = 0;
   let turn = 0;
-  const maxTurns = 100;
+  const maxTurns = 10;
   let combatLog = "";
   let bossStunned = false;
 
@@ -1957,7 +1957,7 @@ async function simulateRaidBattle(playerProfile, raidBoss, playerUser) {
 
       // Apply elemental reactions using modular system
       const playerReaction = playerBuffs.setInfo?.elementalReaction;
-      const reactionResult = applyElementalReaction(totalHitDamage, playerReaction);
+      const reactionResult = applyElementalReaction(totalHitDamage, playerReaction, { attack: playerAttack });
       totalHitDamage = reactionResult.damage;
       let procMessages = reactionResult.procs;
       
