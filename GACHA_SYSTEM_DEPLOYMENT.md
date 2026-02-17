@@ -14,11 +14,9 @@ This document outlines how to deploy the Transcendent rarity tier and gacha summ
 - **Exclusive to**: Gacha system only (cannot drop from adventures/dungeons)
 
 ### Gacha Command (`/summon`)
-- **Cost**: 100,000 gold per pull, 1,000,000 for 10-pull (no discount)
-- **Transcendent Rate**: 0.6% base
-- **Pity System**: 
-  - Soft pity starts at pull 75 (+0.5% per pull)
-  - Hard pity at pull 90 (guaranteed Transcendent)
+- **Cost**: 1,000,000 gold per pull, 10,000,000 for 10-pull (no discount)
+- **Transcendent Rate**: 0.05% base (pure RNG)
+- **Pity System**: DISABLED (may be enabled in future updates)
 - **Other Drops**: Legendary (5.4%), Epic (12%), Rare (27%), Uncommon (30%), Common (25%)
 
 ---
@@ -95,7 +93,7 @@ Add pity counter field to schema (after buffs section):
 Create `commands/economy/summon.js` with the full gacha implementation.
 
 **Key Features:**
-- Costs: 100k single, 1M for 10-pull
+- Costs: 1M single, 10M for 10-pull
 - Defensive pity counter initialization
 - Rarity rolling with soft/hard pity
 - Special announcement for Transcendent pulls
@@ -136,8 +134,8 @@ Create `commands/economy/summon.js` with the full gacha implementation.
 Introducing **Transcendent Rarity** items! 🌟
 
 Use `/summon` to spend gold for a chance at powerful new equipment:
-• 1x Summon: 100,000 gold
-• 10x Summon: 1,000,000 gold
+• 1x Summon: 1,000,000 gold
+• 10x Summon: 10,000,000 gold
 
 Transcendent items are 30-40% stronger than Legendary with 5 substats!
 
@@ -176,10 +174,10 @@ If issues arise, quick rollback:
 
 ## Economic Balance Notes
 
-**Why 100k per pull?**
+**Why 1M per pull?**
 - Players can sell unwanted gear for gold
 - No discount on 10-pulls prevents exploit loops
-- High cost makes Transcendent feel premium
+- Very high cost makes Transcendent feel premium
 - Creates endgame gold sink
 
 **Monitor after deployment:**

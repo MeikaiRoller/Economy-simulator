@@ -26,30 +26,31 @@ const RARITY_COLORS = {
   Rare: 0x0070dd,
   Epic: 0xa335ee,
   Legendary: 0xff8000,
+  Transcendent: 0xff1493,
 };
 
 // Main stat ranges by rarity and slot
 const MAIN_STAT_RANGES = {
-  weapon: { type: "attack", ranges: { Common: [15, 25], Uncommon: [25, 40], Rare: [40, 60], Epic: [60, 85], Legendary: [85, 120] }},
-  head: { type: "defense", ranges: { Common: [10, 18], Uncommon: [18, 30], Rare: [30, 45], Epic: [45, 65], Legendary: [65, 95] }},
-  chest: { type: "hp%", ranges: { Common: [8, 12], Uncommon: [12, 18], Rare: [18, 25], Epic: [25, 35], Legendary: [35, 50] }},
-  hands: { type: "critRate", ranges: { Common: [2, 4], Uncommon: [4, 7], Rare: [7, 11], Epic: [11, 16], Legendary: [16, 23] }},
-  feet: { type: "critDMG", ranges: { Common: [8, 15], Uncommon: [15, 25], Rare: [25, 40], Epic: [40, 60], Legendary: [60, 90] }},
-  accessory: { type: "energy", ranges: { Common: [5, 10], Uncommon: [10, 18], Rare: [18, 28], Epic: [28, 42], Legendary: [42, 65] }}
+  weapon: { type: "attack", ranges: { Common: [15, 25], Uncommon: [25, 40], Rare: [40, 60], Epic: [60, 85], Legendary: [85, 120], Transcendent: [120, 160] }},
+  head: { type: "defense", ranges: { Common: [10, 18], Uncommon: [18, 30], Rare: [30, 45], Epic: [45, 65], Legendary: [65, 95], Transcendent: [95, 130] }},
+  chest: { type: "hp%", ranges: { Common: [8, 12], Uncommon: [12, 18], Rare: [18, 25], Epic: [25, 35], Legendary: [35, 50], Transcendent: [50, 70] }},
+  hands: { type: "critRate", ranges: { Common: [2, 4], Uncommon: [4, 7], Rare: [7, 11], Epic: [11, 16], Legendary: [16, 23], Transcendent: [23, 32] }},
+  feet: { type: "critDMG", ranges: { Common: [8, 15], Uncommon: [15, 25], Rare: [25, 40], Epic: [40, 60], Legendary: [60, 90], Transcendent: [90, 125] }},
+  accessory: { type: "energy", ranges: { Common: [5, 10], Uncommon: [10, 18], Rare: [18, 28], Epic: [28, 42], Legendary: [42, 65], Transcendent: [65, 90] }}
 };
 
 // Sub-stat roll ranges
 const SUB_STAT_RANGES = {
-  "attack": { Common: [3, 8], Uncommon: [8, 15], Rare: [15, 25], Epic: [25, 40], Legendary: [40, 60] },
-  "attack%": { Common: [2, 5], Uncommon: [5, 9], Rare: [9, 14], Epic: [14, 20], Legendary: [20, 30] },
-  "defense": { Common: [2, 6], Uncommon: [6, 12], Rare: [12, 20], Epic: [20, 32], Legendary: [32, 50] },
-  "defense%": { Common: [2, 5], Uncommon: [5, 9], Rare: [9, 14], Epic: [14, 20], Legendary: [20, 30] },
-  "hp": { Common: [20, 40], Uncommon: [40, 70], Rare: [70, 110], Epic: [110, 160], Legendary: [160, 240] },
-  "hp%": { Common: [2, 5], Uncommon: [5, 9], Rare: [9, 14], Epic: [14, 20], Legendary: [20, 30] },
-  "critRate": { Common: [1, 3], Uncommon: [3, 5], Rare: [5, 8], Epic: [8, 12], Legendary: [12, 18] },
-  "critDMG": { Common: [3, 8], Uncommon: [8, 14], Rare: [14, 22], Epic: [22, 33], Legendary: [33, 50] },
-  "energy": { Common: [2, 5], Uncommon: [5, 9], Rare: [9, 15], Epic: [15, 23], Legendary: [23, 35] },
-  "luck": { Common: [0.02, 0.05], Uncommon: [0.05, 0.08], Rare: [0.08, 0.12], Epic: [0.12, 0.18], Legendary: [0.18, 0.27] }
+  "attack": { Common: [3, 8], Uncommon: [8, 15], Rare: [15, 25], Epic: [25, 40], Legendary: [40, 60], Transcendent: [60, 85] },
+  "attack%": { Common: [2, 5], Uncommon: [5, 9], Rare: [9, 14], Epic: [14, 20], Legendary: [20, 30], Transcendent: [30, 42] },
+  "defense": { Common: [2, 6], Uncommon: [6, 12], Rare: [12, 20], Epic: [20, 32], Legendary: [32, 50], Transcendent: [50, 70] },
+  "defense%": { Common: [2, 5], Uncommon: [5, 9], Rare: [9, 14], Epic: [14, 20], Legendary: [20, 30], Transcendent: [30, 42] },
+  "hp": { Common: [20, 40], Uncommon: [40, 70], Rare: [70, 110], Epic: [110, 160], Legendary: [160, 240], Transcendent: [240, 330] },
+  "hp%": { Common: [2, 5], Uncommon: [5, 9], Rare: [9, 14], Epic: [14, 20], Legendary: [20, 30], Transcendent: [30, 42] },
+  "critRate": { Common: [1, 3], Uncommon: [3, 5], Rare: [5, 8], Epic: [8, 12], Legendary: [12, 18], Transcendent: [18, 26] },
+  "critDMG": { Common: [3, 8], Uncommon: [8, 14], Rare: [14, 22], Epic: [22, 33], Legendary: [33, 50], Transcendent: [50, 70] },
+  "energy": { Common: [2, 5], Uncommon: [5, 9], Rare: [9, 15], Epic: [15, 23], Legendary: [23, 35], Transcendent: [35, 50] },
+  "luck": { Common: [0.02, 0.05], Uncommon: [0.05, 0.08], Rare: [0.08, 0.12], Epic: [0.12, 0.18], Legendary: [0.18, 0.27], Transcendent: [0.27, 0.38] }
 };
 
 const SUB_STAT_POOL = ["attack", "attack%", "defense", "defense%", "hp", "hp%", "critRate", "critDMG", "energy", "luck"];
@@ -60,7 +61,8 @@ const SUB_STAT_COUNT = {
   Uncommon: 2,
   Rare: 3,
   Epic: 3,
-  Legendary: 4
+  Legendary: 4,
+  Transcendent: 5
 };
 
 /**
@@ -127,7 +129,8 @@ function generateItem(slot, rarity = "Common", setName = null) {
     Uncommon: 15000,
     Rare: 40000,
     Epic: 100000,
-    Legendary: 250000
+    Legendary: 250000,
+    Transcendent: 500000
   }[rarity];
   
   const price = Math.floor(baseValue * (0.8 + Math.random() * 0.4)); // ±20% variance

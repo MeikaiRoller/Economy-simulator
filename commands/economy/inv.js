@@ -9,6 +9,7 @@ const RARITY_COLORS = {
   Rare: 0x0070dd,
   Epic: 0xa335ee,
   Legendary: 0xff8000,
+  Transcendent: 0xff1493,
 };
 
 module.exports = {
@@ -65,7 +66,8 @@ module.exports = {
               { name: "Uncommon", value: "Uncommon" },
               { name: "Rare", value: "Rare" },
               { name: "Epic", value: "Epic" },
-              { name: "Legendary", value: "Legendary" }
+              { name: "Legendary", value: "Legendary" },
+              { name: "Transcendent", value: "Transcendent" }
             )
         )
     )
@@ -267,6 +269,23 @@ async function handleEquip(interaction) {
   const slot = item.slot;
   if (!slot) {
     return interaction.editReply("❌ That item has no slot assigned!");
+  }
+
+  // Check Transcendent limit: only 1 Transcendent item can be equipped at a time
+  if (item.rarity === 'Transcendent') {
+    // Count currently equipped Transcendent items (excluding the slot we're about to replace)
+    const equippedItemIds = Object.entries(user.equipped)
+      .filter(([equipSlot, equipItemId]) => equipItemId && equipSlot !== slot)
+      .map(([_, equipItemId]) => equipItemId);
+    
+    const equippedItems = await Item.find({ itemId: { $in: equippedItemIds } });
+    const transcendentCount = equippedItems.filter(i => i.rarity === 'Transcendent').length;
+    
+    if (transcendentCount >= 1) {
+      return interaction.editReply(
+        "❌ You can only equip **1 Transcendent item** at a time! Unequip your current Transcendent item first."
+      );
+    }
   }
 
   // Equip the new item (old item in slot is simply replaced)

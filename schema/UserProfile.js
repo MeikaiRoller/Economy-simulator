@@ -40,6 +40,9 @@ const UserProfileSchema = new mongoose.Schema({
     luckBoost: { type: Number, default: 0, min: 0, max: 20 },
   },
 
+  // ---GACHA SYSTEM---
+  gachaPityCounter: { type: Number, default: 0 }, // Tracks pulls since last Transcendent
+
   inventory: [
     {
       itemId: { type: String },
