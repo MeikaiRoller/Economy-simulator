@@ -17,7 +17,7 @@ module.exports = {
         )
     ),
 
-  async execute(interaction) {
+  run: async ({ interaction }) => {
     const userId = interaction.user.id;
     const count = interaction.options.getInteger('count');
     
@@ -113,13 +113,14 @@ module.exports = {
       // Create response embed
       const embed = new EmbedBuilder()
         .setTitle(`✨ Summoning Results (${count}x Pull)`)
-        .setColor(transcendentPulled ? RARITY_COLORS.Transcendent : RARITY_COLORS.Legendary)
-        .setDescription(
-          transcendentPulled 
-            ? '🌟 **TRANSCENDENT ITEM ACQUIRED!** 🌟\n*A legendary pull!*\n\n' 
-            : ''
-        )
-        .addFields(
+        .setColor(transcendentPulled ? RARITY_COLORS.Transcendent : RARITY_COLORS.Legendary);
+      
+      // Only add description if Transcendent was pulled
+      if (transcendentPulled) {
+        embed.setDescription('🌟 **TRANSCENDENT ITEM ACQUIRED!** 🌟\n*A legendary pull!*\n\n');
+      }
+      
+      embed.addFields(
           {
             name: '📦 Items Obtained',
             value: pulledItems.map(item => 

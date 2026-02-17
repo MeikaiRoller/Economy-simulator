@@ -1911,6 +1911,7 @@ async function simulateRaidBattle(playerProfile, raidBoss, playerUser) {
   let turn = 0;
   const maxTurns = 10;
   let combatLog = "";
+  let fullCombatLog = ""; // Track full log for console
   let bossStunned = false;
 
   // Combat stats for logging
@@ -1929,10 +1930,15 @@ async function simulateRaidBattle(playerProfile, raidBoss, playerUser) {
   while (playerHp > 0 && bossHp > 0 && turn < maxTurns) {
     turn++;
 
+    // Track which log to write to (first 5 turns only for display)
+    const shouldLogToDisplay = turn <= 5;
+
     // PLAYER'S TURN
     // Check dodge
     if (Math.random() * 100 < bossDodge) {
-      combatLog += `💨 **${raidBoss.bossName}** dodges!\n`;
+      const logEntry = `💨 **${raidBoss.bossName}** dodges!\n`;
+      fullCombatLog += logEntry;
+      if (shouldLogToDisplay) combatLog += logEntry;
       statLog.bossDodges++;
     } else {
       // Calculate damage
@@ -2010,8 +2016,13 @@ async function simulateRaidBattle(playerProfile, raidBoss, playerUser) {
       totalPlayerDamage += totalHitDamage;
 
       const procText = procMessages.length > 0 ? ` [${procMessages.join(", ")}]` : "";
-      combatLog += `⚔️ **${playerUser.username}** attacks for **${totalHitDamage}** damage${isCrit ? " (CRIT!)" : ""}${procText}\n`;
-      combatLog += `   └─ Base: ${baseDamage}${isCrit ? ` → Crit: ${Math.floor(baseDamage * (1 + playerCritDMG / 100))}` : ""}${procMessages.length > 0 ? ` + Reaction` : ""}\n`;
+      const attackLog = `⚔️ **${playerUser.username}** attacks for **${totalHitDamage}** damage${isCrit ? " (CRIT!)" : ""}${procText}\n`;
+      const detailLog = `   └─ Base: ${baseDamage}${isCrit ? ` → Crit: ${Math.floor(baseDamage * (1 + playerCritDMG / 100))}` : ""}${procMessages.length > 0 ? ` + Reaction` : ""}\n`;
+      
+      fullCombatLog += attackLog + detailLog;
+      if (shouldLogToDisplay) {
+        combatLog += attackLog + detailLog;
+      }
     }
 
     if (bossHp <= 0) break;
@@ -2019,13 +2030,17 @@ async function simulateRaidBattle(playerProfile, raidBoss, playerUser) {
     // BOSS'S TURN - Counter-attack
     // Check if boss is stunned
     if (bossStunned) {
-      combatLog += `💫 **${raidBoss.bossName}** is stunned and cannot attack!\n`;
+      const stunLog = `💫 **${raidBoss.bossName}** is stunned and cannot attack!\n`;
+      fullCombatLog += stunLog;
+      if (shouldLogToDisplay) combatLog += stunLog;
       bossStunned = false; // Reset stun flag
     } else {
       // Check player dodge
       const playerDodge = Math.min(toPercent(playerBuffs.dodge || 0), 50);
       if (Math.random() * 100 < playerDodge) {
-        combatLog += `💨 **${playerUser.username}** dodges!\n`;
+        const dodgeLog = `💨 **${playerUser.username}** dodges!\n`;
+        fullCombatLog += dodgeLog;
+        if (shouldLogToDisplay) combatLog += dodgeLog;
       } else {
         // Calculate boss damage
         const variance = 0.8 + (Math.random() * 0.4);
@@ -2034,7 +2049,9 @@ async function simulateRaidBattle(playerProfile, raidBoss, playerUser) {
         if (bossDamage < 1) bossDamage = 1;
 
         playerHp -= bossDamage;
-        combatLog += `🔥 **${raidBoss.bossName}** attacks for **${bossDamage}** damage!\n`;
+        const bossAttackLog = `🔥 **${raidBoss.bossName}** attacks for **${bossDamage}** damage!\n`;
+        fullCombatLog += bossAttackLog;
+        if (shouldLogToDisplay) combatLog += bossAttackLog;
       }
     }
 
@@ -2043,23 +2060,40 @@ async function simulateRaidBattle(playerProfile, raidBoss, playerUser) {
       bossDefenseDebuff.turnsRemaining--;
       if (bossDefenseDebuff.turnsRemaining <= 0) {
         bossDefenseDebuff.active = false;
-        combatLog += `🔄 Boss defense restored\n`;
+        const restoreLog = `🔄 Boss defense restored\n`;
+        fullCombatLog += restoreLog;
+        if (shouldLogToDisplay) combatLog += restoreLog;
       }
     }
 
     // Add spacing for readability
-    if (turn % 5 === 0) combatLog += "\n";
+    if (turn % 5 === 0) {
+      const spacing = "\n";
+      fullCombatLog += spacing;
+      if (shouldLogToDisplay) combatLog += spacing;
+    }
   }
 
   const playerDefeated = playerHp <= 0;
   const bossDefeated = bossHp <= 0;
 
+  // Add truncation notice if battle lasted more than 5 turns
+  if (turn > 5) {
+    combatLog += `\n_[Turns 6-${turn} hidden to save space]_\n`;
+  }
+
   if (playerDefeated) {
-    combatLog += `\n💀 **${playerUser.username}** was defeated!`;
+    const defeatLog = `\n💀 **${playerUser.username}** was defeated!`;
+    fullCombatLog += defeatLog;
+    combatLog += defeatLog;
   } else if (bossDefeated) {
-    combatLog += `\n🐉 **${raidBoss.bossName}** was defeated!`;
+    const victoryLog = `\n🐉 **${raidBoss.bossName}** was defeated!`;
+    fullCombatLog += victoryLog;
+    combatLog += victoryLog;
   } else {
-    combatLog += `\n⏰ Battle ended - Max turns (${maxTurns}) reached`;
+    const timeoutLog = `\n⏰ Battle ended - Max turns (${maxTurns}) reached`;
+    fullCombatLog += timeoutLog;
+    combatLog += timeoutLog;
   }
 
   // Add summary stats at the end
