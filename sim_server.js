@@ -100,7 +100,7 @@ app.post('/api/simulate', (req, res) => {
   res.json(suite);
 });
 
-// ─── Start ────────────────────────────────────────────────────────────────────
+// ─── Start (local dev) / Export (Vercel) ─────────────────────────────────────
 async function start() {
   try {
     await mongoose.connect(process.env.MONGO_URI);
@@ -113,4 +113,11 @@ async function start() {
   });
 }
 
-start();
+if (require.main === module) {
+  // Running directly: node sim_server.js
+  start();
+} else {
+  // Imported by Vercel serverless — connect DB lazily then export
+  mongoose.connect(process.env.MONGO_URI).catch(() => {});
+  module.exports = app;
+}
