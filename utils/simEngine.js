@@ -5,7 +5,7 @@
  */
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const ARMOR_CONSTANT = 400;
+const ARMOR_CONSTANT = 200;
 const getDR          = (def) => def / (def + ARMOR_CONSTANT);
 const getOffenseMult = (def) => {
   if (def < 450) return 1;
@@ -55,20 +55,20 @@ const FLEX_MAIN_POOL = ['attack','attackPct','defense','defensePct','hp','hpPct'
 
 const DEFAULT_MAINS = { chest: 'hpPct', hands: 'critRate', feet: 'critDMG', accessory: 'energy' };
 const SUB_AVG = {
-  Legendary: { attack: 50, attackPct: 25, defense: 41, defensePct: 15, hp: 200, hpPct: 25, critRate: 10, critDMG: 32, energy: 29 },
-  Epic:      { attack: 32.5, attackPct: 17, defense: 26, defensePct: 10, hp: 135, hpPct: 17, critRate: 7,  critDMG: 22, energy: 19 },
+  Legendary: { attack: 50, attackPct: 25, defense: 41, hp: 200, critRate: 10, critDMG: 32, energy: 29 },
+  Epic:      { attack: 32.5, attackPct: 17, defense: 26, hp: 135, critRate: 7,  critDMG: 22, energy: 19 },
 };
 
 // ─── Substat system ────────────────────────────────────────────────────────────
-const SUBSTAT_KEYS = ['attack', 'attackPct', 'defense', 'defensePct', 'hp', 'hpPct', 'critRate', 'critDMG', 'energy'];
+const SUBSTAT_KEYS = ['attack', 'attackPct', 'defense', 'hp', 'critRate', 'critDMG', 'energy']; // defensePct and hpPct removed — main stat only
 
 const DEFAULT_SUBPROFILE = {
   weapon:    ['energy',    'attack',    'attackPct', 'hp'],
   head:      ['hp',        'energy',    'attackPct', 'defense'],
   chest:     ['attackPct', 'energy',    'attack',    'hp'],
   hands:     ['critDMG',   'energy',    'attack',    'attackPct'],
-  feet:      ['attack',    'hpPct',     'energy',    'attackPct'],
-  accessory: ['attack',    'attackPct', 'hp',        'hpPct'],
+  feet:      ['attack',    'hp',        'energy',    'attackPct'],
+  accessory: ['attack',    'attackPct', 'hp',        'energy'],
 };
 
 const SUBSTAT_PROFILES = {
@@ -78,8 +78,8 @@ const SUBSTAT_PROFILES = {
     head:      ['hp',        'energy',    'attackPct', 'defense'],
     chest:     ['attackPct', 'energy',    'attack',    'hp'],
     hands:     ['critDMG',   'energy',    'attack',    'attackPct'],
-    feet:      ['attack',    'hpPct',     'energy',    'attackPct'],
-    accessory: ['attack',    'attackPct', 'hp',        'hpPct'],
+    feet:      ['attack',    'hp',        'energy',    'attackPct'],
+    accessory: ['attack',    'attackPct', 'hp',        'energy'],
   },
   'Crit Focus':   {
     weapon:    ['attack',    'critRate',  'critDMG',   'attackPct'],
@@ -90,12 +90,12 @@ const SUBSTAT_PROFILES = {
     accessory: ['attack',    'critDMG',   'critRate',  'attackPct'],
   },
   'HP Scaling':   {
-    weapon:    ['attack',    'hp',        'hpPct',     'energy'],
-    head:      ['hp',        'hpPct',     'energy',    'attackPct'],
+    weapon:    ['attack',    'hp',        'energy',    'attackPct'],
+    head:      ['hp',        'defense',   'energy',    'attackPct'],
     chest:     ['hp',        'attack',    'energy',    'defense'],
-    hands:     ['critDMG',   'hpPct',     'hp',        'attack'],
-    feet:      ['hp',        'hpPct',     'attack',    'energy'],
-    accessory: ['hp',        'hpPct',     'attack',    'attackPct'],
+    hands:     ['critDMG',   'hp',        'attack',    'energy'],
+    feet:      ['hp',        'attack',    'energy',    'attackPct'],
+    accessory: ['hp',        'attack',    'energy',    'attackPct'],
   },
   'Attack Flat':  {
     weapon:    ['attack',    'attackPct', 'energy',    'critDMG'],
@@ -106,19 +106,19 @@ const SUBSTAT_PROFILES = {
     accessory: ['attack',    'attackPct', 'hp',        'critDMG'],
   },
   'Defense Tank': {
-    weapon:    ['defense',   'hp',        'defensePct','hpPct'],
-    head:      ['defensePct','hp',        'hpPct',     'attack'],
-    chest:     ['defensePct','defense',   'hp',        'attack'],
-    hands:     ['defense',   'hp',        'defensePct','hpPct'],
-    feet:      ['defense',   'hpPct',     'hp',        'defensePct'],
-    accessory: ['defense',   'hp',        'defensePct','hpPct'],
+    weapon:    ['defense',   'hp',        'energy',    'attack'],
+    head:      ['defense',   'hp',        'energy',    'attack'],
+    chest:     ['energy',    'defense',   'hp',        'attack'],
+    hands:     ['defense',   'hp',        'energy',    'attack'],
+    feet:      ['defense',   'energy',    'hp',        'attack'],
+    accessory: ['defense',   'hp',        'energy',    'attack'],
   },
   'Energy Burst': {
     weapon:    ['energy',    'attack',    'attackPct', 'critDMG'],
-    head:      ['defense',   'hp',        'energy',    'hpPct'],
+    head:      ['defense',   'hp',        'energy',    'attack'],
     chest:     ['energy',    'attackPct', 'attack',    'critDMG'],
     hands:     ['energy',    'critDMG',   'attack',    'attackPct'],
-    feet:      ['attack',    'energy',    'hpPct',     'attackPct'],
+    feet:      ['attack',    'energy',    'hp',        'attackPct'],
     accessory: ['energy',    'attack',    'attackPct', 'critDMG'],
   },
 };

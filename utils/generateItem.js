@@ -72,7 +72,7 @@ const SUB_STAT_RANGES = {
   "luck": { Common: [0.02, 0.05], Uncommon: [0.05, 0.08], Rare: [0.08, 0.12], Epic: [0.12, 0.18], Legendary: [0.18, 0.27], Transcendent: [0.27, 0.38] }
 };
 
-const SUB_STAT_POOL = ["attack", "attack%", "defense", "defense%", "hp", "hp%", "critRate", "critDMG", "energy", "luck"];
+const SUB_STAT_POOL = ["attack", "attack%", "defense", "hp", "critRate", "critDMG", "energy", "luck"]; // defense% and hp% removed — too powerful as sub-stats, remain as main-stat-only
 
 // All items start with 2 substats at birth.
 // The 3rd is unlocked by upgrading to +5, the 4th by upgrading to +10.

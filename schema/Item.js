@@ -51,7 +51,7 @@ const ItemSchema = new mongoose.Schema({
   
   // Sub Stats (random rolls)
   subStats: [{
-    type: { type: String, enum: ["attack", "attack%", "defense", "defense%", "hp", "hp%", "critRate", "critDMG", "energy", "luck"] },
+    type: { type: String, enum: ["attack", "attack%", "defense", "hp", "critRate", "critDMG", "energy", "luck"] }, // defense% and hp% removed
     value: { type: Number }
   }],
   
