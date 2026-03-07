@@ -7,8 +7,6 @@
 require('dotenv').config();
 const express  = require('express');
 const path     = require('path');
-const mongoose = require('mongoose');
-const RaidBoss = require('./schema/RaidBoss');
 const { ALL_SETS, THREE_PC, SUBSTAT_KEYS, SUBSTAT_PROFILES, DEFAULT_SUBPROFILE, FLEX_MAIN_POOL, DEFAULT_MAINS,
         getDR, buildPlayer, buildMixedPlayer, runSuite, sbConfig } = require('./utils/simEngine');
 
@@ -49,6 +47,11 @@ app.get('/api/substats', (req, res) => {
 // Returns the live raid boss stats (or fallback if none active).
 app.get('/api/boss', async (req, res) => {
   try {
+    const mongoose = require('mongoose');
+    const RaidBoss = require('./schema/RaidBoss');
+    if (mongoose.connection.readyState !== 1) {
+      await mongoose.connect(process.env.MONGO_URI);
+    }
     const boss = await RaidBoss.findOne({ active: true });
     if (boss && boss.maxHp > 0) {
       res.json({ name: boss.bossName || 'Raid Boss', attack: boss.attack, defense: boss.defense, maxHp: boss.maxHp, live: true });
@@ -103,6 +106,7 @@ app.post('/api/simulate', (req, res) => {
 // ─── Start (local dev) / Export (Vercel) ─────────────────────────────────────
 async function start() {
   try {
+    const mongoose = require('mongoose');
     await mongoose.connect(process.env.MONGO_URI);
     console.log('✅ MongoDB connected');
   } catch {
@@ -117,7 +121,6 @@ if (require.main === module) {
   // Running directly: node sim_server.js
   start();
 } else {
-  // Imported by Vercel serverless — connect DB lazily then export
-  mongoose.connect(process.env.MONGO_URI).catch(() => {});
+  // Imported by Vercel serverless — no mongoose at module load time
   module.exports = app;
 }
