@@ -31,14 +31,30 @@ const RARITY_COLORS = {
 };
 
 // Main stat ranges by rarity and slot
-// Crit main stats (hands/feet) reduced at Legendary+ to prevent runaway stacking
 const MAIN_STAT_RANGES = {
-  weapon: { type: "attack",   ranges: { Common: [15, 25], Uncommon: [25, 40], Rare: [40, 60], Epic: [60, 85],  Legendary: [85, 120],  Transcendent: [120, 155] }},
-  head:   { type: "defense",  ranges: { Common: [10, 18], Uncommon: [18, 30], Rare: [30, 45], Epic: [45, 65],  Legendary: [65, 95],   Transcendent: [95, 125]  }},
-  chest:  { type: "hp%",      ranges: { Common: [8, 12],  Uncommon: [12, 18], Rare: [18, 25], Epic: [25, 35],  Legendary: [35, 50],   Transcendent: [50, 68]   }},
-  hands:  { type: "critRate", ranges: { Common: [2, 4],   Uncommon: [4, 7],   Rare: [7, 10],  Epic: [10, 14],  Legendary: [14, 18],   Transcendent: [18, 24]   }},
-  feet:   { type: "critDMG",  ranges: { Common: [8, 15],  Uncommon: [15, 25], Rare: [25, 38], Epic: [38, 55],  Legendary: [55, 78],   Transcendent: [78, 105]  }},
-  accessory: { type: "energy",ranges: { Common: [5, 10],  Uncommon: [10, 18], Rare: [18, 28], Epic: [28, 42],  Legendary: [42, 65],   Transcendent: [65, 90]   }}
+  weapon: { type: "attack",  ranges: { Common: [15, 25], Uncommon: [25, 40], Rare: [40, 60], Epic: [60, 85],  Legendary: [85, 120],  Transcendent: [120, 155] }},
+  head:   { type: "defense", ranges: { Common: [10, 18], Uncommon: [18, 30], Rare: [30, 45], Epic: [45, 65],  Legendary: [65, 95],   Transcendent: [95, 125]  }},
+  chest:     { pool: true },
+  hands:     { pool: true },
+  feet:      { pool: true },
+  accessory: { pool: true },
+};
+
+// Full stat pool available as main stats on chest/hands/feet/accessory
+const FLEXIBLE_MAIN_POOL = ["attack", "attack%", "defense", "defense%", "hp", "hp%", "critRate", "critDMG", "energy", "luck"];
+
+// Main stat roll ranges for flexible slots — stronger than sub-stat rolls
+const FLEXIBLE_MAIN_RANGES = {
+  "attack":    { Common: [20,35],    Uncommon: [35,55],    Rare: [55,80],    Epic: [80,115],    Legendary: [115,160],  Transcendent: [160,215]  },
+  "attack%":   { Common: [8,12],     Uncommon: [12,18],    Rare: [18,25],    Epic: [25,35],     Legendary: [35,50],    Transcendent: [50,68]    },
+  "defense":   { Common: [15,25],    Uncommon: [25,40],    Rare: [40,55],    Epic: [55,80],     Legendary: [80,120],   Transcendent: [120,160]  },
+  "defense%":  { Common: [8,12],     Uncommon: [12,18],    Rare: [18,25],    Epic: [25,35],     Legendary: [35,50],    Transcendent: [50,68]    },
+  "hp":        { Common: [80,130],   Uncommon: [130,200],  Rare: [200,310],  Epic: [310,460],   Legendary: [460,650],  Transcendent: [650,880]  },
+  "hp%":       { Common: [8,12],     Uncommon: [12,18],    Rare: [18,25],    Epic: [25,35],     Legendary: [35,50],    Transcendent: [50,68]    },
+  "critRate":  { Common: [2,4],      Uncommon: [4,7],      Rare: [7,10],     Epic: [10,14],     Legendary: [14,18],    Transcendent: [18,24]    },
+  "critDMG":   { Common: [8,15],     Uncommon: [15,25],    Rare: [25,38],    Epic: [38,55],     Legendary: [55,78],    Transcendent: [78,105]   },
+  "energy":    { Common: [5,10],     Uncommon: [10,18],    Rare: [18,28],    Epic: [28,42],     Legendary: [42,65],    Transcendent: [65,90]    },
+  "luck":      { Common: [0.03,0.06],Uncommon: [0.06,0.10],Rare: [0.10,0.15],Epic: [0.15,0.22], Legendary: [0.22,0.32],Transcendent: [0.32,0.44]},
 };
 
 // Sub-stat roll ranges
@@ -89,13 +105,29 @@ function generateItem(slot, rarity = "Common", setName = null) {
   
   // Generate main stat
   const mainStatConfig = MAIN_STAT_RANGES[slot];
-  const mainStatRange = mainStatConfig.ranges[rarity];
-  const mainStatValue = Math.floor(Math.random() * (mainStatRange[1] - mainStatRange[0] + 1)) + mainStatRange[0];
-  
-  // Generate sub-stats
+  let mainStatType, mainStatValue;
+
+  if (mainStatConfig.pool) {
+    // Flexible slot — roll a random main stat from the full pool
+    mainStatType = FLEXIBLE_MAIN_POOL[Math.floor(Math.random() * FLEXIBLE_MAIN_POOL.length)];
+    const range  = FLEXIBLE_MAIN_RANGES[mainStatType][rarity];
+    mainStatValue = Math.random() * (range[1] - range[0]) + range[0];
+    if (mainStatType.includes('%') || mainStatType === 'luck') {
+      mainStatValue = Math.round(mainStatValue * 10) / 10;
+    } else {
+      mainStatValue = Math.floor(mainStatValue);
+    }
+  } else {
+    // Fixed slot (weapon / head)
+    mainStatType  = mainStatConfig.type;
+    const range   = mainStatConfig.ranges[rarity];
+    mainStatValue = Math.floor(Math.random() * (range[1] - range[0] + 1)) + range[0];
+  }
+
+  // Generate sub-stats — no duplicate sub types, but main stat type is allowed
   const numSubStats = SUB_STAT_COUNT[rarity];
-  const subStats = [];
-  const usedTypes = new Set([mainStatConfig.type]); // Don't duplicate main stat
+  const subStats    = [];
+  const usedTypes   = new Set(); // subs only blocked from duplicating each other
   
   for (let i = 0; i < numSubStats; i++) {
     // Get available sub-stat types
@@ -150,7 +182,7 @@ function generateItem(slot, rarity = "Common", setName = null) {
     setName,
     element: setData.element,
     mainStat: {
-      type: mainStatConfig.type,
+      type: mainStatType,
       value: mainStatValue
     },
     subStats,

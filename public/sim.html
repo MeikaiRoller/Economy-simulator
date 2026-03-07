@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚔️ Set Build Simulator</title>
+<style>
+  :root {
+    --bg:        #0d1117;
+    --panel:     #161b22;
+    --border:    #30363d;
+    --accent:    #e94560;
+    --accent2:   #58a6ff;
+    --text:      #c9d1d9;
+    --muted:     #8b949e;
+    --green:     #3fb950;
+    --yellow:    #d29922;
+    --purple:    #bc8cff;
+    --orange:    #f0883e;
+    --font:      'Consolas', 'Courier New', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 12px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* ── Header ─────────────────────────────────────── */
+  header { background: var(--panel); border-bottom: 1px solid var(--border); padding: 8px 16px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  header h1 { font-size: 14px; color: var(--accent); }
+  #status { color: var(--muted); font-size: 11px; margin-left: auto; }
+  #status.ok  { color: var(--green); }
+  #status.err { color: var(--accent); }
+
+  /* ── Main layout ─────────────────────────────────── */
+  main { display: flex; flex-direction: column; flex: 1; overflow: hidden; padding: 8px; gap: 8px; }
+  .top-row { display: grid; grid-template-columns: 260px 220px 1fr; gap: 8px; flex-shrink: 0; }
+
+  /* ── Panels ──────────────────────────────────────── */
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 12px; overflow-y: auto; }
+  .panel h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 10px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+
+  /* ── Form elements ───────────────────────────────── */
+  label { display: block; color: var(--muted); font-size: 11px; margin-bottom: 3px; }
+  select, input[type=number], input[type=text] {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 5px 8px; border-radius: 4px; width: 100%; font-family: var(--font); font-size: 12px;
+  }
+  select:focus, input:focus { outline: 1px solid var(--accent2); border-color: var(--accent2); }
+  .form-row { margin-bottom: 8px; }
+  .form-row-inline { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+  .radio-group { display: flex; gap: 8px; }
+  .radio-group label { display: flex; align-items: center; gap: 4px; cursor: pointer; color: var(--text); margin: 0; }
+  .radio-group input[type=radio] { accent-color: var(--accent); }
+
+  /* ── Buttons ─────────────────────────────────────── */
+  button { border: none; border-radius: 4px; cursor: pointer; font-family: var(--font); font-size: 12px; padding: 6px 12px; transition: opacity 0.15s; }
+  button:hover { opacity: 0.85; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-primary   { background: var(--accent);  color: #fff; width: 100%; padding: 9px; font-size: 13px; font-weight: bold; }
+  .btn-secondary { background: var(--accent2); color: #0d1117; }
+  .btn-ghost     { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+  .btn-danger    { background: transparent; border: 1px solid #443; color: var(--accent); font-size: 11px; padding: 3px 7px; }
+
+  /* ── Stat preview ────────────────────────────────── */
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; margin-top: 8px; }
+  .stat-item { display: flex; justify-content: space-between; }
+  .stat-label { color: var(--muted); }
+  .stat-value { color: var(--accent2); font-weight: bold; }
+  .stat-value.decay { color: var(--purple); }
+  .stat-value.warn  { color: var(--yellow); }
+  .badge { display: inline-block; background: #1e2a3a; border: 1px solid #334; border-radius: 3px; padding: 1px 5px; font-size: 10px; color: var(--accent2); margin: 2px 2px 0 0; }
+  .badge.sb  { border-color: var(--purple); color: var(--purple); }
+  .badge.dmg { border-color: var(--orange); color: var(--orange); }
+  .badge.def { border-color: var(--green);  color: var(--green);  }
+  #mechanic-badges { margin-top: 6px; min-height: 20px; }
+
+  /* ── Override panel ──────────────────────────────── */
+  .override-section { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 8px; }
+  .override-toggle  { display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--muted); font-size: 11px; }
+  .override-toggle input { width: auto; }
+  #override-fields  { display: none; margin-top: 8px; }
+  .override-grid    { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+  /* ── Boss panel ──────────────────────────────────── */
+  .boss-dr { color: var(--muted); font-size: 11px; margin-top: 2px; }
+  .boss-dr span { color: var(--yellow); }
+  .fights-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .fights-row label { margin: 0; color: var(--muted); white-space: nowrap; }
+  .fights-row input { width: 70px; }
+  #boss-live-badge { font-size: 10px; color: var(--green); display: none; }
+
+  /* ── Results panel ───────────────────────────────── */
+  .result-empty { color: var(--muted); text-align: center; padding: 30px 0; font-size: 11px; }
+  .result-grid  { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; margin: 10px 0; }
+  .result-item  { display: flex; flex-direction: column; }
+  .result-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .result-val   { font-size: 20px; color: var(--accent2); font-weight: bold; }
+  .result-val.dot { color: var(--purple); }
+  .result-val.good { color: var(--green); }
+  .result-sub   { font-size: 10px; color: var(--muted); }
+  .bar-wrap     { background: #1a1a2e; border-radius: 3px; height: 6px; margin-top: 4px; overflow: hidden; }
+  .bar          { height: 100%; border-radius: 3px; transition: width 0.4s; }
+  .bar-direct   { background: var(--accent2); }
+  .bar-dot      { background: var(--purple); }
+  #add-compare-btn { display: none; margin-top: 10px; }
+
+  /* ── Comparison table ────────────────────────────── */
+  .compare-panel { flex: 1; overflow-y: auto; }
+  .compare-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  th { background: #1a1a2e; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; padding: 5px 8px; border-bottom: 1px solid var(--border); text-align: left; cursor: pointer; user-select: none; white-space: nowrap; }
+  th:hover { color: var(--text); }
+  td { padding: 5px 8px; border-bottom: 1px solid #1a1a2e; white-space: nowrap; }
+  tr:hover td { background: #1a1a2e; }
+  .td-build   { color: var(--accent2); font-weight: bold; }
+  .td-damage  { color: var(--text); font-weight: bold; }
+  .td-dot     { color: var(--purple); }
+  .td-muted   { color: var(--muted); }
+  .best-row td { background: #1a2a1a !important; }
+  .spinner { display: inline-block; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Substat panel ────────────────────────────────── */
+  .sub-panel-header { display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+  .sub-panel-header h3 { margin: 0; border: none; padding: 0; }
+  .sub-slot-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-top: 10px; }
+  .sub-slot-name { display: block; color: var(--accent2); font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .sub-sel { margin-bottom: 4px; font-size: 11px; }
+  .preset-row { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+  .preset-label { color: var(--muted); font-size: 10px; white-space: nowrap; }
+  .btn-preset { background: #1a1a2e; border: 1px solid var(--border); color: var(--muted); font-size: 10px; padding: 3px 8px; border-radius: 3px; cursor: pointer; }
+  .btn-preset:hover { border-color: var(--accent2); color: var(--accent2); }
+  .btn-preset.active { border-color: var(--accent2); color: var(--accent2); background: #1a2a3a; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⚔️ Set Build Simulator</h1>
+  <span>Lvl 50 · +0 Items · Average Rolls</span>
+  <span id="status">⏳ Connecting...</span>
+</header>
+
+<main>
+  <div class="top-row">
+
+    <!-- ── Build Config ─────────────────────────────── -->
+    <div class="panel">
+      <h3>Build Config</h3>
+
+      <div class="form-row">
+        <label>Rarity</label>
+        <div class="radio-group">
+          <label><input type="radio" name="rarity" value="Legendary" checked> Legendary</label>
+          <label><input type="radio" name="rarity" value="Epic"> Epic</label>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label>Set Mode</label>
+        <div class="radio-group">
+          <label><input type="radio" name="mode" value="6pc" checked> 6pc full</label>
+          <label><input type="radio" name="mode" value="3+3"> 3+3 mix</label>
+        </div>
+      </div>
+
+      <div class="form-row" id="set1-row">
+        <label id="set1-label">Set</label>
+        <select id="set1"></select>
+        <div id="set1-tags" style="color:var(--muted);font-size:10px;margin-top:3px;"></div>
+      </div>
+
+      <div class="form-row" id="set2-row" style="display:none">
+        <label>Set 2 (3pc)</label>
+        <select id="set2"></select>
+        <div id="set2-tags" style="color:var(--muted);font-size:10px;margin-top:3px;"></div>
+      </div>
+
+      <!-- Stat preview -->
+      <div style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px;">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">COMPUTED STATS</div>
+        <div class="stat-grid">
+          <div class="stat-item"><span class="stat-label">ATK</span><span class="stat-value" id="s-atk">—</span></div>
+          <div class="stat-item"><span class="stat-label">DEF</span><span class="stat-value" id="s-def">—</span></div>
+          <div class="stat-item"><span class="stat-label">HP</span> <span class="stat-value" id="s-hp">—</span></div>
+          <div class="stat-item"><span class="stat-label">Energy</span><span class="stat-value" id="s-energy">—</span></div>
+          <div class="stat-item"><span class="stat-label">Crit</span><span class="stat-value" id="s-crit">—</span></div>
+          <div class="stat-item"><span class="stat-label">CritDMG</span><span class="stat-value" id="s-critdmg">—</span></div>
+          <div class="stat-item"><span class="stat-label">ATK pen</span><span class="stat-value warn" id="s-pen">—</span></div>
+          <div class="stat-item"><span class="stat-label">Boss DR</span><span class="stat-value" id="s-bdr">—</span></div>
+        </div>
+        <div id="mechanic-badges"></div>
+      </div>
+
+      <!-- Stat overrides -->
+      <div class="override-section">
+        <label class="override-toggle">
+          <input type="checkbox" id="override-toggle"> Override stats manually
+        </label>
+        <div id="override-fields">
+          <div class="override-grid">
+            <div><label>ATK</label><input type="number" id="ov-atk" min="1"></div>
+            <div><label>DEF</label><input type="number" id="ov-def" min="1"></div>
+            <div><label>HP</label> <input type="number" id="ov-hp"  min="1"></div>
+            <div><label>Energy</label><input type="number" id="ov-energy" min="0"></div>
+            <div><label>Crit %</label><input type="number" id="ov-crit" min="0" max="100"></div>
+            <div><label>CritDMG %</label><input type="number" id="ov-critdmg" min="100"></div>
+          </div>
+          <div style="color:var(--muted);font-size:10px;margin-top:4px;">Blank fields use computed values</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Boss Config ───────────────────────────────── -->
+    <div class="panel">
+      <h3>Boss Config</h3>
+
+      <div class="form-row">
+        <label>Boss HP</label>
+        <input type="number" id="boss-hp"  value="158385" min="1000">
+      </div>
+      <div class="form-row">
+        <label>Boss ATK</label>
+        <input type="number" id="boss-atk" value="1080"   min="1">
+      </div>
+      <div class="form-row">
+        <label>Boss DEF</label>
+        <input type="number" id="boss-def" value="90"     min="0">
+        <div class="boss-dr">DR: <span id="boss-dr-val">31.0%</span></div>
+      </div>
+
+      <button class="btn-secondary" id="load-boss-btn" onclick="loadLiveBoss()" style="width:100%;margin-bottom:4px;">
+        📡 Load Live Boss
+      </button>
+      <div id="boss-live-badge">✅ Live boss loaded</div>
+
+      <div class="fights-row">
+        <label>Fights</label>
+        <input type="number" id="fight-count" value="50" min="5" max="500">
+        <span style="color:var(--muted);font-size:10px;">(5–500)</span>
+      </div>
+
+      <div style="margin-top:16px;">
+        <button class="btn-primary" id="run-btn" onclick="runSim()">▶ RUN SIMULATION</button>
+      </div>
+
+      <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:10px;">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:6px;">QUICK PRESETS</div>
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <button class="btn-ghost" onclick="setPreset('easy')">🟢 Easy (HP×0.5)</button>
+          <button class="btn-ghost" onclick="setPreset('hard')">🔴 Hard (HP×2, ATK×1.3)</button>
+          <button class="btn-ghost" onclick="setPreset('tank')">🛡️ Tank boss (DEF 300)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Results ────────────────────────────────────── -->
+    <div class="panel" id="results-panel">
+      <h3>Last Simulation Result</h3>
+      <div id="result-content">
+        <div class="result-empty">Configure a build and boss, then click Run.</div>
+      </div>
+      <button class="btn-secondary" id="add-compare-btn" onclick="addToComparison()">+ Add to Comparison</button>
+    </div>
+  </div>
+
+  <!-- ── Sub Stats Panel ──────────────────────────────── -->
+  <div class="panel" id="sub-stats-panel" style="flex-shrink:0;">
+    <div class="sub-panel-header" onclick="toggleSubPanel()">
+      <h3>Sub Stats</h3>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="color:var(--muted);font-size:10px;">ITEM LEVEL</span>
+        <div style="display:flex;gap:3px;" onclick="event.stopPropagation()">
+          <button id="ilvl-0"  class="btn-preset" onclick="updateSubLevel(0)">+0</button>
+          <button id="ilvl-5"  class="btn-preset" onclick="updateSubLevel(5)">+5</button>
+          <button id="ilvl-10" class="btn-preset active" onclick="updateSubLevel(10)">+10</button>
+        </div>
+        <span id="sub-toggle-icon" style="color:var(--muted);font-size:12px;">&#9660; expand</span>
+      </div>
+    </div>
+    <div id="sub-panel-inner" style="display:none;">
+      <!-- Main stat selectors for flex slots -->
+      <div style="margin-bottom:8px;">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:1px;">Main Stats &nbsp;<span style="color:#444;font-size:9px;">(Weapon=ATK&nbsp;&amp;&nbsp;Head=DEF fixed)</span></div>
+        <div class="sub-slot-grid" id="sub-main-grid" style="grid-template-columns:repeat(4,1fr);"></div>
+      </div>
+      <div class="preset-row">
+        <span class="preset-label">SUB PRESETS:</span>
+        <span id="sub-preset-btns"></span>
+      </div>
+      <div class="sub-slot-grid" id="sub-slot-grid"></div>
+      <div style="color:var(--muted);font-size:10px;margin-top:6px;">+0&thinsp;=&thinsp;2 subs &nbsp;&middot;&nbsp; +5 unlocks 3rd &nbsp;&middot;&nbsp; +10 unlocks 4th</div>
+    </div>
+  </div>
+
+  <!-- ── Comparison Table ──────────────────────────────── -->
+  <div class="panel compare-panel">
+    <div class="compare-header">
+      <h3 style="border:none;padding:0;margin:0;">Comparison Table</h3>
+      <div style="display:flex;gap:6px;">
+        <span id="compare-count" style="color:var(--muted);font-size:11px;align-self:center;">0 builds</span>
+        <button class="btn-ghost" onclick="clearComparison()">Clear All</button>
+      </div>
+    </div>
+    <div id="compare-empty" style="color:var(--muted);font-size:11px;padding:12px 0;">
+      Run simulations and click "+ Add to Comparison" to build a side-by-side table.
+    </div>
+    <div id="compare-table-wrap" style="display:none;overflow-x:auto;">
+      <table id="compare-table">
+        <thead>
+          <tr>
+            <th onclick="sortTable('setName')">Build</th>
+            <th onclick="sortTable('mode')">Mode</th>
+            <th onclick="sortTable('rarity')">Rar.</th>
+            <th onclick="sortTable('attack')">ATK</th>
+            <th onclick="sortTable('defense')">DEF</th>
+            <th onclick="sortTable('hp')">HP</th>
+            <th onclick="sortTable('energy')">Energy</th>
+            <th onclick="sortTable('avgTotal')">Avg Dmg ↕</th>
+            <th onclick="sortTable('avgDirect')">Direct</th>
+            <th onclick="sortTable('avgDot')">DoT</th>
+            <th onclick="sortTable('dotShareNum')">DoT%</th>
+            <th onclick="sortTable('avgTurnsNum')">Turns</th>
+            <th onclick="sortTable('survivalNum')">Surv.</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="compare-body"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+let sets          = [];      // [{name, tags3pc}]
+let tagMap        = {};      // name → tags3pc
+let currentPlayer = null;   // last built player
+let currentSuite  = null;   // last sim result
+let comparison    = [];     // [{player, suite}]
+let sortKey       = 'avgTotal';
+let sortAsc       = false;
+let substatKeys     = [];   // ['attack','attackPct', ...]
+let substatProfiles = {};   // { 'DoT Meta': {...}, ... }
+let activeSubPreset = 'DoT Meta';
+let activeItemLevel = 10;   // 0 = +0 (2 subs), 5 = +5 (3 subs), 10 = +10 (4 subs)
+let flexMainPool    = [];   // stat keys available as flex main stats
+let activeMains     = { chest: 'hpPct', hands: 'critRate', feet: 'critDMG', accessory: 'energy' };
+const FIXED_MAINS   = { weapon: 'attack', head: 'defense' }; // never change
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+async function init() {
+  try {
+    const [setsRes, subRes] = await Promise.all([fetch('/api/sets'), fetch('/api/substats')]);
+    const dat    = await setsRes.json();
+    const subDat = await subRes.json();
+    sets = dat.sets;
+    sets.forEach(s => tagMap[s.name] = s.tags3pc);
+    substatKeys     = subDat.keys;
+    substatProfiles = subDat.profiles;
+    flexMainPool    = subDat.flexMainPool || subDat.keys;
+    activeMains     = subDat.defaultMains || activeMains;
+    buildSubPanel(subDat.defaultProfile);
+    populateDropdowns();
+    updateModeUI();
+    await autoPreview();
+    setStatus('ok', '✅ Ready');
+  } catch (e) {
+    setStatus('err', '❌ Server offline — run: node sim_server.js');
+  }
+
+  // Wire up change events
+  document.querySelectorAll('input[name=rarity], input[name=mode]').forEach(el => el.addEventListener('change', () => { updateModeUI(); autoPreview(); }));
+  document.getElementById('set1').addEventListener('change', autoPreview);
+  document.getElementById('set2').addEventListener('change', autoPreview);
+  document.getElementById('boss-def').addEventListener('input', updateBossDR);
+  document.getElementById('override-toggle').addEventListener('change', function() {
+    document.getElementById('override-fields').style.display = this.checked ? 'block' : 'none';
+  });
+}
+
+function setStatus(cls, msg) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = cls;
+}
+
+function populateDropdowns() {
+  ['set1','set2'].forEach(id => {
+    const sel = document.getElementById(id);
+    sel.innerHTML = sets.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
+  });
+  // Default set2 to something different from set1
+  document.getElementById('set2').value = sets[1]?.name || sets[0]?.name;
+}
+
+function updateModeUI() {
+  const is3p3 = document.querySelector('input[name=mode]:checked').value === '3+3';
+  document.getElementById('set2-row').style.display = is3p3 ? 'block' : 'none';
+  document.getElementById('set1-label').textContent  = is3p3 ? 'Set 1 (3pc)' : 'Set (6pc)';
+}
+
+function getRarity() { return document.querySelector('input[name=rarity]:checked').value; }
+function getMode()   { return document.querySelector('input[name=mode]:checked').value; }
+
+// ─── Auto preview stats ────────────────────────────────────────────────────────
+function getSubProfile() {
+  const slots = ['weapon','head','chest','hands','feet','accessory'];
+  const p = {};
+  for (const slot of slots) {
+    const subs = [];
+    for (let i = 0; i < 4; i++) {
+      const el = document.getElementById(`sub-${slot}-${i}`);
+      if (el) subs.push(el.value);
+    }
+    p[slot] = subs;
+  }
+  return Object.keys(p).length === 6 ? p : null;
+}
+
+async function autoPreview() {
+  const mode   = getMode();
+  const rarity = getRarity();
+  const set1   = document.getElementById('set1').value;
+  const set2   = document.getElementById('set2').value;
+
+  // Show set tags
+  document.getElementById('set1-tags').textContent = tagMap[set1] || '';
+  document.getElementById('set2-tags').textContent = mode === '3+3' ? (tagMap[set2] || '') : '';
+
+  try {
+    const r = await fetch('/api/build', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rarity, mode, set1, set2: mode === '3+3' ? set2 : undefined, subProfile: getSubProfile(), itemLevel: activeItemLevel, mains: getMains() })
+    });
+    const p = await r.json();
+    if (p.error) return;
+    currentPlayer = p;
+    updateStatPreview(p);
+    fillOverrideFields(p);
+  } catch {}
+}
+
+function updateStatPreview(p) {
+  const set = (id, val) => document.getElementById(id).textContent = val;
+  set('s-atk',    p.attack);
+  set('s-def',    `${p.defense} (${p.dr}% DR)`);
+  set('s-hp',     p.hp.toLocaleString());
+  set('s-energy', p.energy.toFixed(0));
+  set('s-crit',   `${p.crit.toFixed(0)}%`);
+  set('s-critdmg',`${p.critMult.toFixed(0)}%`);
+  set('s-pen',    p.attackPenalty > 0 ? `-${(p.attackPenalty*100).toFixed(0)}%` : 'none');
+  set('s-bdr',    `${(p.defense / (p.defense + 200) * 100).toFixed(1)}%`);
+
+  // Mechanic badges
+  const badges = [];
+  if (p.decayProcChance > 0) {
+    const sf  = p.decayEnergyScaleFactor || 0.6;
+    const dps = (p.decayBaseDmg + (p.decayEnergyScale ? p.energy * sf : 0)).toFixed(0);
+    badges.push(`<span class="badge sb">⚫ Decay ${(p.decayProcChance*100).toFixed(0)}% · ${dps} dmg/stk${p.decayBothTurns ? ' · both turns' : ''}</span>`);
+  }
+  if (p.setProcRate   > 0) badges.push(`<span class="badge dmg">🔥 Proc ${(p.setProcRate*100).toFixed(0)}%×${(1+(p.damageBonus||0)).toFixed(2)}</span>`);
+  if (p.burstDamage   > 0) badges.push(`<span class="badge dmg">⚡ Burst +${(p.burstDamage*100).toFixed(0)}% on-crit</span>`);
+  if (p.freezeChance  > 0) badges.push(`<span class="badge">❄️ Freeze ${(p.freezeChance*100).toFixed(0)}%</span>`);
+  if (p.dodge         > 0) badges.push(`<span class="badge">💨 Dodge ${p.dodge}%${p.swirlDamage > 0 ? ` + swirl` : ''}</span>`);
+  if (p.counterChance > 0) badges.push(`<span class="badge def">🛡️ Counter ${(p.counterChance*100).toFixed(0)}%</span>`);
+  if (p.lifestealChance>0) badges.push(`<span class="badge def">💧 Lifesteal ${(p.lifestealChance*100).toFixed(0)}%</span>`);
+  document.getElementById('mechanic-badges').innerHTML = badges.join('');
+}
+
+function fillOverrideFields(p) {
+  // Only fill if override is NOT checked (don't clobber user edits)
+  if (document.getElementById('override-toggle').checked) return;
+  document.getElementById('ov-atk').value    = p.attack;
+  document.getElementById('ov-def').value    = p.defense;
+  document.getElementById('ov-hp').value     = p.hp;
+  document.getElementById('ov-energy').value = Math.round(p.energy);
+  document.getElementById('ov-crit').value   = Math.round(p.crit);
+  document.getElementById('ov-critdmg').value= Math.round(p.critMult);
+}
+
+// ─── Boss DR display ──────────────────────────────────────────────────────────
+function updateBossDR() {
+  const def = parseFloat(document.getElementById('boss-def').value) || 0;
+  document.getElementById('boss-dr-val').textContent = (def / (def + 200) * 100).toFixed(1) + '%';
+}
+
+// ─── Load live boss ───────────────────────────────────────────────────────────
+async function loadLiveBoss() {
+  const btn = document.getElementById('load-boss-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Loading...';
+  try {
+    const r    = await fetch('/api/boss');
+    const boss = await r.json();
+    document.getElementById('boss-hp').value  = boss.maxHp;
+    document.getElementById('boss-atk').value = boss.attack;
+    document.getElementById('boss-def').value = boss.defense;
+    updateBossDR();
+    const badge = document.getElementById('boss-live-badge');
+    badge.textContent = boss.live ? `✅ Live: ${boss.name}` : `⚠️ Fallback (no active boss)`;
+    badge.style.display = 'block';
+    badge.style.color   = boss.live ? 'var(--green)' : 'var(--yellow)';
+  } catch {
+    alert('Could not load boss — is the server connected to MongoDB?');
+  }
+  btn.disabled = false;
+  btn.textContent = '📡 Load Live Boss';
+}
+
+// ─── Boss presets ────────────────────────────────────────────────────────────
+function setPreset(preset) {
+  const base = { hp: 158385, atk: 1080, def: 90 };
+  const p = { easy: { hp: base.hp * 0.5, atk: base.atk, def: base.def },
+              hard: { hp: base.hp * 2,   atk: Math.round(base.atk * 1.3), def: base.def },
+              tank: { hp: base.hp,        atk: base.atk, def: 300 } }[preset];
+  if (!p) return;
+  document.getElementById('boss-hp').value  = Math.round(p.hp);
+  document.getElementById('boss-atk').value = p.atk;
+  document.getElementById('boss-def').value = p.def;
+  updateBossDR();
+}
+
+// ─── Run simulation ───────────────────────────────────────────────────────────
+async function runSim() {
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner">⟳</span> Running...';
+
+  try {
+    // Build player with any overrides applied
+    const mode   = getMode();
+    const rarity = getRarity();
+    const set1   = document.getElementById('set1').value;
+    const set2   = document.getElementById('set2').value;
+    const usingOverride = document.getElementById('override-toggle').checked;
+
+    const overrides = usingOverride ? {
+      attack:   document.getElementById('ov-atk').value,
+      defense:  document.getElementById('ov-def').value,
+      hp:       document.getElementById('ov-hp').value,
+      energy:   document.getElementById('ov-energy').value,
+      crit:     document.getElementById('ov-crit').value,
+      critMult: document.getElementById('ov-critdmg').value,
+    } : {};
+
+    const buildRes = await fetch('/api/build', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rarity, mode, set1, set2: mode === '3+3' ? set2 : undefined, overrides, subProfile: getSubProfile(), itemLevel: activeItemLevel, mains: getMains() })
+    });
+    const player = await buildRes.json();
+    if (player.error) { alert(player.error); return; }
+
+    const boss = {
+      maxHp:   parseFloat(document.getElementById('boss-hp').value)  || 158385,
+      attack:  parseFloat(document.getElementById('boss-atk').value) || 1080,
+      defense: parseFloat(document.getElementById('boss-def').value) || 90,
+    };
+    const n = parseInt(document.getElementById('fight-count').value) || 50;
+
+    const simRes = await fetch('/api/simulate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ player, boss, n })
+    });
+    const suite = await simRes.json();
+    if (suite.error) { alert(suite.error); return; }
+
+    currentPlayer = player;
+    currentSuite  = suite;
+    renderResults(player, suite, n);
+    document.getElementById('add-compare-btn').style.display = 'block';
+  } catch (e) {
+    alert('Simulation failed: ' + e.message);
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '▶ RUN SIMULATION';
+}
+
+// ─── Render results ───────────────────────────────────────────────────────────
+function renderResults(player, suite, n) {
+  const dotPct    = parseFloat(suite.dotShare) || 0;
+  const directPct = 100 - dotPct;
+  const html = `
+    <div style="margin-bottom:6px;color:var(--accent2);font-weight:bold;">${player.setName}
+      <span style="color:var(--muted);font-weight:normal;font-size:10px;"> — ${player.rarity} ${player.mode} — ${n} fights</span>
+    </div>
+    <div class="result-grid">
+      <div class="result-item">
+        <span class="result-label">Avg Total Damage</span>
+        <span class="result-val">${suite.avgTotal.toLocaleString()}</span>
+        <span class="result-sub">${suite.avgDirect.toLocaleString()} direct + ${suite.avgDot.toLocaleString()} DoT</span>
+      </div>
+      <div class="result-item">
+        <span class="result-label">DoT Share</span>
+        <span class="result-val dot">${suite.dotShare}</span>
+        <div class="bar-wrap" style="margin-top:6px;">
+          <div style="display:flex;height:100%;">
+            <div class="bar bar-direct" style="width:${directPct}%;"></div>
+            <div class="bar bar-dot"    style="width:${dotPct}%;"></div>
+          </div>
+        </div>
+      </div>
+      <div class="result-item">
+        <span class="result-label">Avg Turns</span>
+        <span class="result-val good">${suite.avgTurns}</span>
+        <span class="result-sub">out of 10 max</span>
+      </div>
+      <div class="result-item">
+        <span class="result-label">Survival</span>
+        <span class="result-val">${suite.survivalRate}</span>
+        <span class="result-sub">boss kills</span>
+      </div>
+      <div class="result-item">
+        <span class="result-label">Avg Decay Stacks</span>
+        <span class="result-val dot">${suite.avgStacks}</span>
+      </div>
+      <div class="result-item">
+        <span class="result-label">Avg HP Remaining</span>
+        <span class="result-val">${suite.avgHpPct}</span>
+      </div>
+    </div>`;
+  document.getElementById('result-content').innerHTML = html;
+}
+
+// ─── Comparison table ─────────────────────────────────────────────────────────
+function addToComparison() {
+  if (!currentPlayer || !currentSuite) return;
+  comparison.push({ player: { ...currentPlayer }, suite: { ...currentSuite } });
+  renderComparison();
+}
+
+function removeRow(idx) {
+  comparison.splice(idx, 1);
+  renderComparison();
+}
+
+function clearComparison() {
+  comparison = [];
+  renderComparison();
+}
+
+function sortTable(key) {
+  if (sortKey === key) sortAsc = !sortAsc;
+  else { sortKey = key; sortAsc = false; }
+  renderComparison();
+}
+
+function renderComparison() {
+  const wrap  = document.getElementById('compare-table-wrap');
+  const empty = document.getElementById('compare-empty');
+  const count = document.getElementById('compare-count');
+  count.textContent = `${comparison.length} build${comparison.length !== 1 ? 's' : ''}`;
+
+  if (comparison.length === 0) { wrap.style.display = 'none'; empty.style.display = 'block'; return; }
+  wrap.style.display  = 'block';
+  empty.style.display = 'none';
+
+  // Enrich rows with sortable numeric fields
+  const rows = comparison.map((c, i) => ({
+    ...c,
+    idx: i,
+    avgTotal:    c.suite.avgTotal,
+    avgDirect:   c.suite.avgDirect,
+    avgDot:      c.suite.avgDot,
+    dotShareNum: parseFloat(c.suite.dotShare) || 0,
+    avgTurnsNum: parseFloat(c.suite.avgTurns) || 0,
+    survivalNum: parseInt(c.suite.survivalRate.split('/')[0]) || 0,
+    setName: c.player.setName,
+    mode:    c.player.mode,
+    rarity:  c.player.rarity,
+    attack:  c.player.attack,
+    defense: c.player.defense,
+    hp:      c.player.hp,
+    energy:  c.player.energy,
+  }));
+
+  rows.sort((a, b) => {
+    const av = a[sortKey], bv = b[sortKey];
+    if (typeof av === 'string') return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
+    return sortAsc ? av - bv : bv - av;
+  });
+
+  const maxDmg = Math.max(...rows.map(r => r.avgTotal));
+
+  const body = rows.map(r => {
+    const isBest = r.avgTotal === maxDmg;
+    const dotPct = r.dotShareNum;
+    return `<tr class="${isBest ? 'best-row' : ''}">
+      <td class="td-build">${isBest ? '👑 ' : ''}${r.player.setName}</td>
+      <td class="td-muted">${r.player.mode || '—'}</td>
+      <td class="td-muted">${r.player.rarity.slice(0,3)}</td>
+      <td>${r.player.attack}</td>
+      <td>${r.player.defense}</td>
+      <td>${r.player.hp.toLocaleString()}</td>
+      <td>${Math.round(r.player.energy)}</td>
+      <td class="td-damage">${r.suite.avgTotal.toLocaleString()}</td>
+      <td class="td-muted">${r.suite.avgDirect.toLocaleString()}</td>
+      <td class="td-dot">${r.suite.avgDot.toLocaleString()}</td>
+      <td class="td-dot">${r.suite.dotShare}</td>
+      <td class="td-muted">${r.suite.avgTurns}</td>
+      <td class="td-muted">${r.suite.survivalRate}</td>
+      <td><button class="btn-danger" onclick="removeRow(${r.idx})">✕</button></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('compare-body').innerHTML = body;
+}
+
+// ─── Substat panel ────────────────────────────────────────────────────────────
+const SUB_LABEL = {
+  attack:'ATK flat', attackPct:'ATK %', defense:'DEF flat', defensePct:'DEF %',
+  hp:'HP flat', hpPct:'HP %', critRate:'Crit Rate', critDMG:'Crit DMG', energy:'Energy'
+};
+
+function toggleSubPanel() {
+  const inner = document.getElementById('sub-panel-inner');
+  const icon  = document.getElementById('sub-toggle-icon');
+  const open  = inner.style.display === 'none' || inner.style.display === '';
+  inner.style.display = open ? 'block' : 'none';
+  icon.textContent    = open ? '▲ collapse' : '▼ expand';
+}
+
+function buildSubPanel(defaultProfile) {
+  // Preset buttons
+  const btnWrap = document.getElementById('sub-preset-btns');
+  btnWrap.innerHTML = Object.keys(substatProfiles).map(name =>
+    `<button class="btn-preset${name === activeSubPreset ? ' active' : ''}" onclick="applySubPreset('${name}')">${name}</button>`
+  ).join('');
+
+  // Main stat selectors for flexible slots
+  const SUB_LABEL_MAP = { attack:'ATK flat', attackPct:'ATK %', defense:'DEF flat', defensePct:'DEF %', hp:'HP flat', hpPct:'HP %', critRate:'Crit Rate', critDMG:'Crit DMG', energy:'Energy' };
+  const mainOpts = flexMainPool.map(k => `<option value="${k}">${SUB_LABEL_MAP[k] || k}</option>`).join('');
+  const flexSlots = ['chest','hands','feet','accessory'];
+  const mainGrid = document.getElementById('sub-main-grid');
+  if (mainGrid) {
+    mainGrid.innerHTML = flexSlots.map(slot => `
+      <div>
+        <span class="sub-slot-name">${slot}</span>
+        <select id="main-${slot}" class="sub-sel" onchange="onMainChange('${slot}')">${mainOpts}</select>
+      </div>`).join('');
+    flexSlots.forEach(slot => {
+      const el = document.getElementById(`main-${slot}`);
+      if (el && activeMains[slot]) el.value = activeMains[slot];
+    });
+  }
+
+  // Build 4 substats per slot
+  const opts  = substatKeys.map(k => `<option value="${k}">${SUB_LABEL_MAP[k] || k}</option>`).join('');
+  const grid  = document.getElementById('sub-slot-grid');
+  const allSlots = ['weapon','head','chest','hands','feet','accessory'];
+  grid.innerHTML = allSlots.map(slot => `
+    <div>
+      <span class="sub-slot-name">${slot}</span>
+      <select id="sub-${slot}-0" class="sub-sel" onchange="onSubChange('${slot}')">${opts}</select>
+      <select id="sub-${slot}-1" class="sub-sel" onchange="onSubChange('${slot}')">${opts}</select>
+      <select id="sub-${slot}-2" class="sub-sel sub-lvl5" onchange="onSubChange('${slot}')" style="display:none">${opts}</select>
+      <select id="sub-${slot}-3" class="sub-sel sub-lvl10" onchange="onSubChange('${slot}')" style="display:none">${opts}</select>
+    </div>`).join('');
+
+  applyProfileToDropdowns(defaultProfile);
+  updateSubLevel(activeItemLevel, false);
+}
+
+function applySubPreset(name) {
+  const profile = substatProfiles[name];
+  if (!profile) return;
+  activeSubPreset = name;
+  applyProfileToDropdowns(profile);
+  document.querySelectorAll('.btn-preset').forEach(b =>
+    b.classList.toggle('active', b.textContent === name)
+  );
+  autoPreview();
+}
+
+function applyProfileToDropdowns(profile) {
+  const slots = ['weapon','head','chest','hands','feet','accessory'];
+  for (const slot of slots) {
+    const subs = profile[slot] || ['attack','energy','hpPct','critDMG'];
+    for (let i = 0; i < 4; i++) {
+      const el = document.getElementById(`sub-${slot}-${i}`);
+      if (el && subs[i]) el.value = subs[i];
+    }
+    refreshSlotOptions(slot);
+  }
+}
+
+function refreshSlotOptions(slot) {
+  // Only prevent duplicate subs against each other — main stat is allowed in subs
+  const chosen = new Set();
+  const active = [];
+  for (let i = 0; i < 4; i++) {
+    const el = document.getElementById(`sub-${slot}-${i}`);
+    if (el && el.style.display !== 'none') {
+      active.push({ el, val: el.value });
+      chosen.add(el.value);
+    }
+  }
+  for (const { el, val } of active) {
+    for (const opt of el.options) {
+      opt.disabled = chosen.has(opt.value) && opt.value !== val;
+    }
+  }
+}
+
+function getMains() {
+  const m = {};
+  for (const slot of ['chest','hands','feet','accessory']) {
+    const el = document.getElementById(`main-${slot}`);
+    if (el) m[slot] = el.value;
+  }
+  return m;
+}
+
+function onMainChange(slot) {
+  activeMains[slot] = document.getElementById(`main-${slot}`)?.value;
+  refreshSlotOptions(slot);
+  autoPreview();
+}
+
+function onSubChange(slot) {
+  if (slot) refreshSlotOptions(slot);
+  activeSubPreset = null;
+  document.querySelectorAll('.btn-preset').forEach(b => b.classList.remove('active'));
+  autoPreview();
+}
+
+function updateSubLevel(level, doPreview = true) {
+  activeItemLevel = level;
+  // Show/hide 3rd and 4th subs
+  document.querySelectorAll('.sub-lvl5').forEach(el  => el.style.display = level >= 5  ? '' : 'none');
+  document.querySelectorAll('.sub-lvl10').forEach(el => el.style.display = level >= 10 ? '' : 'none');
+  // Refresh duplicate prevention after visibility changes
+  ['weapon','head','chest','hands','feet','accessory'].forEach(refreshSlotOptions);
+  // Update active button
+  [0,5,10].forEach(l => {
+    const btn = document.getElementById(`ilvl-${l}`);
+    if (btn) btn.classList.toggle('active', l === level);
+  });
+  if (doPreview) autoPreview();
+}
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>

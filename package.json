@@ -4,6 +4,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
+    "sim": "node sim_server.js",
     "seed": "node seed_stocks.js",
     "seed:items": "node seed_items.js",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -16,6 +17,7 @@
     "discord.js": "^14.19.1",
     "djs-commander": "^0.0.50",
     "dotenv": "^16.5.0",
+    "express": "^5.2.1",
     "moment-timezone": "^0.5.48",
     "mongodb": "^7.0.0",
     "mongoose": "^8.14.0",

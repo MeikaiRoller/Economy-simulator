@@ -98,46 +98,93 @@ function buildPlayer(rarity, setName) {
   let setDefensePct     = 0;
   let setHpPct          = 0;
   let setCritChance     = 0;
-  let setCritDMG        = 0;
-  let attackPenalty     = 0;
-  let decayProcChance   = 0;
-  let decayBaseDmg      = 0;
+  let setCritDMG      = 0;
+  let setEnergy       = 0;
+  // Set-specific mechanic fields
+  let attackPenalty   = 0;
+  let decayProcChance = 0;
+  let decayBaseDmg    = 0;
   let decayEnergyScale  = false;
   let decayBothTurns    = false;
+  let setProcRate     = 0;   // on-hit proc chance for damage bonus (Olivias)
+  let damageBonus     = 0;   // damage multiplier on proc (Olivias)
+  let burstDamage     = 0;   // on-crit bonus damage fraction (Justins)
+  let dodge           = 0;   // dodge % chance vs boss attacks (Hasagi)
+  let swirlDamage     = 0;   // counter hit on dodge (Hasagi)
+  let freezeChance    = 0;   // chance to skip boss turn (Lilahs)
+  let lifestealChance = 0;   // on-hit lifesteal proc chance (Andys)
+  let lifestealPct    = 0;   // fraction of hit healed on proc (Andys)
+  let counterChance   = 0;   // counter attack chance after being hit (Maries)
+  let counterDmgPct   = 0;   // counter damage as fraction of attack (Maries)
 
   if (setName === 'Soulbound Ranked') {
-    // 6pc total: penalty 0.30, proc 1.00, baseDmg 5, energyScale 60%, AP DoT, bothTurns
+    // 6pc total: -30% pen, 100% proc, base 5, AP DoT, 60% energy scale, bothTurns
     attackPenalty    = 0.30;
     decayProcChance  = 1.00;
     decayBaseDmg     = 5;
     decayEnergyScale = true;
     decayBothTurns   = true;
   } else if (setName === 'Ethans Prowess') {
-    // 6pc: +0.60 attack, +0.16 defense, +6 critRate (2pc+3pc+6pc stacked)
+    // 6pc cumulative: atk +0.60, def +0.16, crit +6
     setAttackPct  = 0.60;
-    setDefensePct = 0.16;   // 0.06 (3pc) + 0.10 (6pc)
-    setCritChance = 6;      // 6pc only
+    setDefensePct = 0.16;
+    setCritChance = 6;
+  } else if (setName === 'Olivias Fury') {
+    // 6pc + resonance: atk +0.58, proc 0.46, dmgBonus 0.21
+    setAttackPct  = 0.58;
+    setProcRate   = 0.46;   // 0.34 set + 0.12 resonance
+    damageBonus   = 0.21;   // 0.12 (6pc) + 0.09 (resonance)
+  } else if (setName === 'Justins Clapping') {
+    // 6pc + resonance: energy +108, crit +15, critDMG +12, burst +25% on-crit
+    setEnergy     = 108;    // 15+25+50 = 90 set + 18 resonance
+    setCritChance = 15;     // 5 (3pc) + 10 (6pc)
+    setCritDMG    = 12;     // resonance bonus
+    burstDamage   = 0.25;   // 6pc: on-crit extra hit = 25% of direct hit
+  } else if (setName === 'Lilahs Cold Heart') {
+    // 6pc + resonance: crit +37, critDMG +48, freeze boss 15%
+    setCritChance = 37;     // 6+10+16 = 32 + 5 resonance
+    setCritDMG    = 48;     // 12+26 = 38 + 10 resonance
+    freezeChance  = 0.15;   // 6pc: skip boss attack turn
+  } else if (setName === 'Hasagi') {
+    // 6pc + resonance: dodge 27%, swirl counter on dodge (swirlDamage 0.29×atk)
+    dodge         = 27;     // 6+15 = 21 + 6 resonance
+    swirlDamage   = 0.29;   // 0.20 (6pc) + 0.09 resonance — counter hit on dodge
+  } else if (setName === 'Maries Zhongli Bodypillow') {
+    // 6pc + resonance: def +0.65, hp +0.23, 8% counter at 15% of atk
+    setDefensePct = 0.65;   // 0.10+0.18+0.30 = 0.58 + 0.07 resonance
+    setHpPct      = 0.23;   // 0.08+0.15
+    counterChance = 0.08;
+    counterDmgPct = 0.15;   // resonance counter damage multiplier
+  } else if (setName === 'Andys Soraka') {
+    // 6pc + resonance: hp +0.91, 18% lifesteal proc heals 10% of hit
+    setHpPct       = 0.91;
+    lifestealChance= 0.18;
+    lifestealPct   = 0.10;
   }
 
-  // ── Derived stats ──
-  const rawAttack  = (25 + level * 2 + attackFlat) * (1 + attackPct + setAttackPct);
-  const defense    = Math.floor((12 + level + defenseFlat) * (1 + defensePct + setDefensePct));
-  const baseHp     = Math.floor((250 + level * 15 + hpFlat) * (1 + hpPct + setHpPct));
+  energy += setEnergy;
 
-  // Apply attack penalty (Soulbound Ranked) then offense nerf for high DEF
+  // ── Derived stats ──
+  const rawAttack   = (25 + level * 2 + attackFlat) * (1 + attackPct + setAttackPct);
+  const defense     = Math.floor((12 + level + defenseFlat) * (1 + defensePct + setDefensePct));
+  const baseHp      = Math.floor((250 + level * 15 + hpFlat) * (1 + hpPct + setHpPct));
   const offenseMult = getOffenseMult(defense);
   const attack      = Math.floor(rawAttack * (1 - attackPenalty) * offenseMult);
-
-  const crit        = 5 + critChance + setCritChance;  // base 5% + gear + set
-  const critMult    = 100 + critDMG;                   // as percent
-  const procRate    = Math.min(0.25, energy / 1000);   // energy → proc bonus
+  const crit        = 5 + critChance + setCritChance;
+  const critMult    = 100 + critDMG + setCritDMG;
+  const procRate    = Math.min(0.25, energy / 1000);
 
   return {
     level, attack, defense, hp: baseHp, crit, critMult, energy, procRate,
-    // DoT config
-    decayProcChance, decayBaseDmg, decayEnergyScale, decayBothTurns, attackPenalty,
-    // For logging
-    rarity, setName, rawAttack: Math.floor(rawAttack), defenseFlat, attackFlat, hpPct
+    // Soulbound DoT
+    decayProcChance, decayBaseDmg, decayEnergyScale, decayEnergyScaleFactor: 0.6,
+    decayBothTurns, attackPenalty,
+    // Set mechanics
+    setProcRate, damageBonus, burstDamage, dodge, swirlDamage,
+    freezeChance, lifestealChance, lifestealPct, counterChance, counterDmgPct,
+    // Logging
+    rarity, setName, rawAttack: Math.floor(rawAttack), defenseFlat, attackFlat,
+    hpPct: hpPct + setHpPct
   };
 }
 
@@ -185,38 +232,154 @@ function buildHybridPlayer(rarity, secondarySet) {
   const decayBaseDmg    = 4;      // 3 + 1
   const decayEnergyScale = true;  // 3pc+
   const decayBothTurns   = false; // 6pc only
-  // ── 3pc secondary set bonuses ──
+  // ── 3pc secondary set bonuses (cumulative 2pc+3pc, no resonance for hybrid) ──
   let setDefensePct = 0;
   let setHpPct      = 0;
   let setAttackPct  = 0;
   let setCritChance = 0;
+  let setCritDMG    = 0;
+  let setProcRate   = 0;
+  let lifestealChance = 0;
+  let lifestealPct    = 0;
   let setLabel      = '';
+  let extraEnergy   = 0;
 
   if (secondarySet === 'Andys Soraka') {
-    // 2pc: hp 0.15  |  3pc: hp 0.25  →  cumulative hp 0.40
-    setHpPct  = 0.40;
-    setLabel  = 'Andy (hydro)';
+    setHpPct        = 0.40;   // 0.15+0.25
+    setLabel        = 'Andy';
+    // lifestealChance needs 6pc — no unlock at 3pc
   } else if (secondarySet === 'Maries Zhongli Bodypillow') {
-    // 2pc: def 0.10  |  3pc: def 0.18, hp 0.08  →  def 0.28, hp 0.08
-    setDefensePct = 0.28;
-    setHpPct      = 0.08;
-    setLabel      = 'Geo (zhongli)';
+    setDefensePct   = 0.28;   // 0.10+0.18
+    setHpPct        = 0.08;   // 3pc
+    setLabel        = 'Geo';
+  } else if (secondarySet === 'Ethans Prowess') {
+    setAttackPct    = 0.30;   // 0.12+0.18
+    setDefensePct   = 0.06;   // 3pc bonus
+    setLabel        = 'Ethans';
+  } else if (secondarySet === 'Olivias Fury') {
+    setAttackPct    = 0.30;   // 0.12+0.18
+    setProcRate     = 0.12;   // 3pc procRate (no damageBonus until 6pc)
+    setLabel        = 'Olivias';
+  } else if (secondarySet === 'Justins Clapping') {
+    extraEnergy     = 40;     // 15+25
+    setCritChance   = 5;      // 3pc
+    setLabel        = 'Justins';
+  } else if (secondarySet === 'Lilahs Cold Heart') {
+    setCritChance   = 16;     // 6+10
+    setCritDMG      = 12;     // 3pc
+    setLabel        = 'Lilahs';
   }
 
+  const totalEnergy = energy + extraEnergy;
   const rawAttack   = (25 + level * 2 + attackFlat) * (1 + attackPct + setAttackPct);
   const defense     = Math.floor((12 + level + defenseFlat) * (1 + setDefensePct));
   const baseHp      = Math.floor((250 + level * 15 + hpFlat) * (1 + hpPct + setHpPct));
   const offenseMult = getOffenseMult(defense);
   const attack      = Math.floor(rawAttack * (1 - attackPenalty) * offenseMult);
   const crit        = 5 + critChance + setCritChance;
-  const critMult    = 100 + critDMG;
-  const procRate    = Math.min(0.25, energy / 1000);
+  const critMult    = 100 + critDMG + setCritDMG;
+  const procRate    = Math.min(0.25, totalEnergy / 1000);
+
+  return {
+    level, attack, defense, hp: baseHp, crit, critMult, energy: totalEnergy, procRate,
+    decayProcChance, decayBaseDmg, decayEnergyScale, decayEnergyScaleFactor: 0.6,
+    decayBothTurns, attackPenalty,
+    setProcRate, damageBonus: 0, burstDamage: 0, dodge: 0, swirlDamage: 0,
+    freezeChance: 0, lifestealChance, lifestealPct, counterChance: 0, counterDmgPct: 0,
+    rarity, setName: `SB3+${setLabel}`,
+    rawAttack: Math.floor(rawAttack), defenseFlat, attackFlat,
+    hpPct: hpPct + setHpPct
+  };
+}
+
+// ─── 3pc bonus lookup (cumulative 2pc + 3pc, no resonance, no 6pc-only mechanics) ──
+const THREE_PC = {
+  'Soulbound Ranked':          { attackPenalty: 0.30, decayProcChance: 0.70, decayBaseDmg: 4, decayEnergyScale: true,  decayBothTurns: false },
+  'Ethans Prowess':            { setAttackPct: 0.30, setDefensePct: 0.06 },
+  'Olivias Fury':              { setAttackPct: 0.30, setProcRate: 0.12 },
+  'Justins Clapping':          { setEnergy: 40, setCritChance: 5 },
+  'Lilahs Cold Heart':         { setCritChance: 16, setCritDMG: 12 },
+  'Hasagi':                    { dodge: 6 },          // CDR not modelled in sim
+  'Maries Zhongli Bodypillow': { setDefensePct: 0.28, setHpPct: 0.08 },
+  'Andys Soraka':              { setHpPct: 0.40 },    // lifesteal needs 6pc
+};
+
+/**
+ * Builds a level-50 player wearing 3pc of set1 + 3pc of set2.
+ * Gear stats are identical to buildPlayer() so comparisons are fair.
+ * Soulbound Ranked 3pc activates Decay (player-turn ticks only, 6pc bothTurns locked).
+ */
+function buildMixedPlayer(rarity, set1, set2) {
+  const level = 50;
+  const mainAvg = {
+    Legendary: { weapon: 102.5, head: 80, chest: 42.5, hands: 16, feet: 66.5, accessory: 53.5 },
+    Epic:      { weapon: 72.5,  head: 55, chest: 30,   hands: 12, feet: 46.5, accessory: 35   }
+  }[rarity];
+  const sA = {
+    Legendary: { attack: 50,   attackPct: 25, defense: 41, hp: 200, critDMG: 32, energy: 29, hpPct: 25 },
+    Epic:      { attack: 32.5, attackPct: 17, defense: 26, hp: 135, critDMG: 22, energy: 19, hpPct: 17 }
+  }[rarity];
+
+  // Same gear layout as buildPlayer / buildHybridPlayer
+  const attackFlat  = mainAvg.weapon + sA.attack * 3;
+  const attackPct   = sA.attackPct / 100;
+  const defenseFlat = mainAvg.head + sA.defense;
+  const hpFlat      = sA.hp;
+  const hpPct       = (mainAvg.chest / 100) + (sA.hpPct / 100);
+  const critChance  = mainAvg.hands;
+  const critDMG     = mainAvg.feet + sA.critDMG;
+  let   energy      = mainAvg.accessory + sA.energy * 4;
+
+  // Merge 3pc bonuses from both sets
+  let setAttackPct  = 0, setDefensePct = 0, setHpPct    = 0;
+  let setCritChance = 0, setCritDMG    = 0, setEnergy   = 0;
+  let setProcRate   = 0, damageBonus   = 0;
+  let dodge         = 0;
+  let attackPenalty    = 0, decayProcChance = 0, decayBaseDmg = 0;
+  let decayEnergyScale = false, decayBothTurns = false;
+
+  for (const setName of [set1, set2]) {
+    const b = THREE_PC[setName] || {};
+    setAttackPct   += b.setAttackPct   || 0;
+    setDefensePct  += b.setDefensePct  || 0;
+    setHpPct       += b.setHpPct       || 0;
+    setCritChance  += b.setCritChance  || 0;
+    setCritDMG     += b.setCritDMG     || 0;
+    setEnergy      += b.setEnergy      || 0;
+    setProcRate    += b.setProcRate     || 0;
+    dodge          += b.dodge          || 0;
+    attackPenalty  += b.attackPenalty  || 0;
+    decayProcChance+= b.decayProcChance|| 0;
+    decayBaseDmg   += b.decayBaseDmg   || 0;
+    if (b.decayEnergyScale) decayEnergyScale = true;
+    if (b.decayBothTurns)   decayBothTurns   = true;
+  }
+  energy += setEnergy;
+
+  const rawAttack  = (25 + level * 2 + attackFlat) * (1 + attackPct + setAttackPct);
+  const defense    = Math.floor((12 + level + defenseFlat) * (1 + setDefensePct));
+  const baseHp     = Math.floor((250 + level * 15 + hpFlat) * (1 + hpPct + setHpPct));
+  const offMult    = getOffenseMult(defense);
+  const attack     = Math.floor(rawAttack * (1 - attackPenalty) * offMult);
+  const crit       = 5 + critChance + setCritChance;
+  const critMult   = 100 + critDMG + setCritDMG;
+  const procRate   = Math.min(0.25, energy / 1000);
+
+  // Short label: abbreviated set names
+  const abbrev = n => ({
+    'Soulbound Ranked': 'SB', 'Ethans Prowess': 'Eth', 'Olivias Fury': 'Oli',
+    'Justins Clapping': 'Jus', 'Lilahs Cold Heart': 'Lil', 'Hasagi': 'Has',
+    'Maries Zhongli Bodypillow': 'Geo', 'Andys Soraka': 'And'
+  })[n] || n.slice(0, 4);
 
   return {
     level, attack, defense, hp: baseHp, crit, critMult, energy, procRate,
     decayProcChance, decayBaseDmg, decayEnergyScale, decayEnergyScaleFactor: 0.6,
     decayBothTurns, attackPenalty,
-    rarity, setName: `Soulbound 3pc + ${setLabel}`,
+    setProcRate, damageBonus, burstDamage: 0, dodge, swirlDamage: 0,
+    freezeChance: 0, lifestealChance: 0, lifestealPct: 0, counterChance: 0, counterDmgPct: 0,
+    rarity, setName: `${abbrev(set1)}+${abbrev(set2)}`,
+    set1, set2,
     rawAttack: Math.floor(rawAttack), defenseFlat, attackFlat, hpPct: hpPct + setHpPct
   };
 }
@@ -259,6 +422,27 @@ function simulateFight(player, boss, maxTurns = 10, config = {}) {
     totalDamage  += hit;
     bossHp       -= hit;
 
+    // ── Set mechanics: on-hit effects ──
+    // Olivias Fury: proc damage bonus
+    if (player.setProcRate > 0 && Math.random() < player.setProcRate) {
+      const procBonus = Math.floor(hit * (player.damageBonus || 0));
+      bossHp      -= procBonus;
+      totalDamage += procBonus;
+      directDamage += procBonus;
+    }
+    // Justins Clapping: burst damage on crit
+    if (isCrit && player.burstDamage > 0) {
+      const burst = Math.floor(hit * player.burstDamage);
+      bossHp      -= burst;
+      totalDamage += burst;
+      directDamage += burst;
+    }
+    // Andys Soraka: lifesteal on hit
+    if (player.lifestealChance > 0 && Math.random() < player.lifestealChance) {
+      const heal = Math.floor(hit * (player.lifestealPct || 0.10));
+      playerHp = Math.min(maxPlayerHp, playerHp + heal);
+    }
+
     // ── DECAY PROC (player turn) ──
     if (Math.random() < player.decayProcChance) {
       decayStacks++;
@@ -283,10 +467,34 @@ function simulateFight(player, boss, maxTurns = 10, config = {}) {
     if (bossHp <= 0) break;
 
     // ── BOSS ATTACK ──
-    const bossVariance = 0.8 + Math.random() * 0.4;
-    let bossDamage = Math.floor(boss.attack * (1 - playerDR) * bossVariance);
-    if (bossDamage < 1) bossDamage = 1;
-    playerHp -= bossDamage;
+    // Lilahs Cold Heart: freeze (skip boss turn)
+    const frozen = player.freezeChance > 0 && Math.random() < player.freezeChance;
+    // Hasagi: dodge
+    const didDodge = !frozen && player.dodge > 0 && Math.random() * 100 < player.dodge;
+
+    if (frozen) {
+      // Boss turn skipped — DoT tick still fires below
+    } else if (didDodge) {
+      // Hasagi: swirl counter on dodge
+      if (player.swirlDamage > 0) {
+        const swirlHit = Math.floor(player.attack * (1 - bossDR) * 0.35 * player.swirlDamage);
+        bossHp      -= swirlHit;
+        totalDamage += swirlHit;
+        directDamage += swirlHit;
+      }
+    } else {
+      const bossVariance = 0.8 + Math.random() * 0.4;
+      let bossDamage = Math.floor(boss.attack * (1 - playerDR) * bossVariance);
+      if (bossDamage < 1) bossDamage = 1;
+      playerHp -= bossDamage;
+      // Maries Zhongli: counter attack
+      if (player.counterChance > 0 && Math.random() < player.counterChance) {
+        const counterHit = Math.floor(player.attack * (1 - bossDR) * (player.counterDmgPct || 0.15));
+        bossHp      -= counterHit;
+        totalDamage  += counterHit;
+        directDamage += counterHit;
+      }
+    }
 
     // ── DOT TICK: end of boss turn (6pc only) ──
     if (player.decayBothTurns && decayStacks > 0 && playerHp > 0) {
@@ -306,12 +514,10 @@ function simulateFight(player, boss, maxTurns = 10, config = {}) {
   }
 
   return {
-    totalDamage,
-    directDamage,
-    dotDamage,
-    decayStacks,
-    turnsPlayed,
-    survived: playerHp > 0
+    totalDamage, directDamage, dotDamage, decayStacks, turnsPlayed,
+    survived: playerHp > 0,
+    finalHp:    Math.max(0, playerHp),
+    finalHpPct: maxPlayerHp > 0 ? Math.max(0, playerHp) / maxPlayerHp : 0
   };
 }
 
@@ -331,17 +537,20 @@ function runSuite(player, boss, n = 20, config = {}) {
   const stacks      = results.map(r => r.decayStacks);
   const survivals   = results.filter(r => r.survived).length;
 
+  const finalHpPcts = results.map(r => r.finalHpPct);
+
   const avgTotal   = Math.round(avg(totalDmgs));
   const avgDot     = Math.round(avg(dotDmgs));
   const avgDirect  = Math.round(avg(directDmgs));
 
   return {
     avgTotal, avgDot, avgDirect,
-    avgTurns:    avg(turns).toFixed(1),
-    avgStacks:   avg(stacks).toFixed(1),
+    avgTurns:     avg(turns).toFixed(1),
+    avgStacks:    avg(stacks).toFixed(1),
     survivalRate: `${survivals}/${n}`,
-    dotShare:    pct(avgDot, avgTotal),
-    directShare: pct(avgDirect, avgTotal)
+    dotShare:     pct(avgDot, avgTotal),
+    directShare:  pct(avgDirect, avgTotal),
+    avgHpPct:     (avg(finalHpPcts) * 100).toFixed(0) + '%'
   };
 }
 
@@ -375,118 +584,220 @@ function printSuite(label, p, boss, s) {
 
 // ─── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log('\n' + '═'.repeat(70));
-  console.log(' SOULBOUND RANKED — BUFF VARIANT TEST');
-  console.log(' Level 50 | +0 Items | Legendary 6pc | 20 fights each');
-  console.log(' Comparing: baseline, 4 individual buffs, all-in combo, Ethans ref');
-  console.log('═'.repeat(70));
+  console.log('\n' + '═'.repeat(72));
+  console.log(' SOULBOUND RANKED — COMPREHENSIVE SET COMPARISON');
+  console.log(' Level 50 | +0 Items | 20 fights each');
+  console.log(' Sections: 1) All 6pc  2) Mixed 3pc+3pc  3) Rarity (Leg vs Epic)');
+  console.log('═'.repeat(72));
 
   await mongoose.connect(process.env.MONGO_URI);
   console.log('✅ Connected to MongoDB\n');
 
-  // ── Fetch raid boss ──
   const boss = await RaidBoss.findOne({ active: true });
   let bossStats = { attack: 1080, defense: 90, maxHp: 158385 };
   if (boss && boss.maxHp > 0) {
     bossStats = { attack: boss.attack || 1080, defense: boss.defense || 90, maxHp: boss.maxHp };
-    console.log(`🐉 Using live boss: ${boss.bossName || 'Le Gromp'}`);
+    console.log(`🐉 Live boss: ${boss.bossName || 'Le Gromp'}`);
   } else {
-    console.log(`🐉 No active boss — using last known stats (158k HP / 1080 ATK)`);
+    console.log(`🐉 No active boss — using fallback stats`);
   }
-  console.log(`   HP: ${bossStats.maxHp.toLocaleString()} | ATK: ${bossStats.attack} | DEF: ${bossStats.defense}`);
-  console.log(`   Boss DR: ${(getDR(bossStats.defense)*100).toFixed(1)}%\n`);
+  console.log(`   HP: ${bossStats.maxHp.toLocaleString()} | ATK: ${bossStats.attack} | DEF: ${bossStats.defense}  (DR ${(getDR(bossStats.defense)*100).toFixed(1)}%)\n`);
 
-  // ── Build base Legendary 6pc and all variants ──
-  const base    = buildPlayer('Legendary', 'Soulbound Ranked');   // Committed build
-  const refBuild = buildPlayer('Legendary', 'Ethans Prowess');
+  const n         = 20;
+  const sbConfig  = { dotArmorPiercing: true, dotLifestealPct: 0.15 };
 
-  // All SB builds use armor-piercing DoT + lifesteal (now baked into the set)
-  const sbConfig = { dotArmorPiercing: true, dotLifestealPct: 0.25 };
+  // ═══════════════════════════════════════════════════════════════════════
+  //  SECTION 1 — ALL 6pc BUILDS (Legendary)
+  // ═══════════════════════════════════════════════════════════════════════
+  console.log('═'.repeat(72));
+  console.log(' SECTION 1 — ALL 6pc BUILDS (Legendary)');
+  console.log('═'.repeat(72));
 
-  // V1 kept for reference: what if we go back to -40% penalty
-  const vOld = buildVariant(base, { attackPenalty: 0.40 });
-  vOld.setName = 'Old baseline (-40% pen)';
-
-  // V2: Buff DoT base damage from 5 → 8 per stack
-  const v2 = buildVariant(base, { decayBaseDmg: 8 });
-  v2.setName = 'V2: base dmg ×8';
-
-  // V4: Lifesteal from DoT ticks — 15% of each tick heals the player
-  const v4 = { ...base, setName: 'V4: DoT lifesteal 15% (ref)' };
-  const v4Config = { dotArmorPiercing: true, dotLifestealPct: 0.25 }; // same as committed now
-
-  // ── Print player stat summary ──
-  console.log('─'.repeat(70));
-  console.log(' KEY STATS (Legendary 6pc — committed build: -30% pen + AP DoT + 60% energy scale)');
-  console.log('─'.repeat(70));
-  const dmgPerStack6 = base.decayBaseDmg + base.energy * (base.decayEnergyScaleFactor || 0.6);
-  const apDot6 = Math.floor(6 * dmgPerStack6);  // armor-piercing, no DR
-  const apDot6Old = Math.floor(6 * (base.decayBaseDmg + base.energy * 0.5) * (1 - getDR(bossStats.defense)));
-  console.log(`\n  Committed  ATK ${base.attack}  (raw ${base.rawAttack}, -30% penalty)  decayBase: 5  energyScale: 60%  AP DoT`);
-  console.log(`  Old        ATK ${vOld.attack}  (raw ${vOld.rawAttack}, -40% penalty)  decayBase: 5  energyScale: 50%  normal DR`);
-  console.log(`  Ethans ref ATK ${refBuild.attack}  (no penalty)  no DoT`);
-  console.log(`\n  At 6 stacks per tick: old = ${apDot6Old} | committed (AP+60%) = ${apDot6}  (${(apDot6/apDot6Old).toFixed(2)}×)`);
-
-  // ── Run simulations ──
-  console.log('\n' + '─'.repeat(70));
-  console.log(' SIMULATION RESULTS (20 fights each)');
-  console.log('─'.repeat(70));
-
-  const n = 20;
-  const sBase  = runSuite(base,    bossStats, n, sbConfig);
-  const sOld   = runSuite(vOld,    bossStats, n);           // old: no AP, 50% scale
-  const sV2    = runSuite(v2,      bossStats, n, sbConfig);
-  const sV4    = runSuite(v4,      bossStats, n, v4Config);
-  const sRef   = runSuite(refBuild,bossStats, n);
-
-  const allBuilds = [
-    { label: 'Committed (-30%+AP+60%)',  s: sBase, p: base,     note: 'live balance' },
-    { label: 'Old baseline (-40%, 50%)', s: sOld,  p: vOld,     note: 'pre-buff' },
-    { label: 'V2 base dmg 8/stack',      s: sV2,   p: v2,       note: '+AP, bigger ticks' },
-    { label: 'V4 +lifesteal 15%',        s: sV4,   p: v4,       note: '+AP, sustain' },
-    { label: 'Ethans Prowess (ref)',      s: sRef,  p: refBuild, note: 'burst reference' },
+  const BUILD_KEYS = [
+    'Soulbound Ranked',
+    'Ethans Prowess',
+    'Olivias Fury',
+    'Justins Clapping',
+    'Lilahs Cold Heart',
+    'Hasagi',
+    'Maries Zhongli Bodypillow',
+    'Andys Soraka',
   ];
 
-  // Compact results table
-  console.log(`\n  ${'Build'.padEnd(26)} ${'AvgDmg'.padStart(7)} ${'vs Old'.padStart(8)} ${'Turns'.padStart(6)} ${'Stacks'.padStart(7)} ${'DoT%'.padStart(6)} ${'ATK'.padStart(5)}`);
-  console.log('  ' + '─'.repeat(68));
-  for (const b of allBuilds) {
-    const vsOld = b.s.avgTotal - sOld.avgTotal;
-    const vsStr = vsOld === 0 ? '  base' : (vsOld > 0 ? `+${vsOld}` : `${vsOld}`);
+  const results6pc = BUILD_KEYS.map(key => {
+    const p = buildPlayer('Legendary', key);
+    const cfg = key === 'Soulbound Ranked' ? sbConfig : {};
+    return { key, player: p, suite: runSuite(p, bossStats, n, cfg) };
+  });
+
+  // Print mini stat block per build
+  results6pc.forEach(b => {
+    const p = b.player;
+    const mechanics = [];
+    if (p.setProcRate   > 0) mechanics.push(`proc ${(p.setProcRate*100).toFixed(0)}% ×${(1+p.damageBonus).toFixed(2)}`);
+    if (p.burstDamage   > 0) mechanics.push(`burst+${(p.burstDamage*100).toFixed(0)}% on-crit`);
+    if (p.dodge         > 0) mechanics.push(`dodge ${p.dodge}%${p.swirlDamage > 0 ? ` swirl×${p.swirlDamage}` : ''}`);
+    if (p.freezeChance  > 0) mechanics.push(`freeze ${(p.freezeChance*100).toFixed(0)}%`);
+    if (p.counterChance > 0) mechanics.push(`counter ${(p.counterChance*100).toFixed(0)}%×${p.counterDmgPct}`);
+    if (p.lifestealChance>0) mechanics.push(`lifesteal ${(p.lifestealChance*100).toFixed(0)}%`);
+    if (p.decayProcChance>0) {
+      const sf = p.decayEnergyScaleFactor || 0.6;
+      const dps = p.decayBaseDmg + p.energy * sf;
+      mechanics.push(`decay ${(p.decayProcChance*100).toFixed(0)}% proc / ${dps.toFixed(0)} dmg/stk (AP, ${p.decayBothTurns?'both turns':'player turn'})`);
+    }
+    console.log(`\n  [${b.key}]`);
+    console.log(`    ATK ${p.attack} (raw ${p.rawAttack}, -${(p.attackPenalty*100).toFixed(0)}% pen) | DEF ${p.defense} DR${(getDR(p.defense)*100).toFixed(1)}% | HP ${p.hp.toLocaleString()} | Crit ${p.crit.toFixed(0)}%/${p.critMult.toFixed(0)}%`);
+    if (mechanics.length) console.log(`    ${mechanics.join('  |  ')}`);
+  });
+
+  const ethRef = results6pc.find(b => b.key === 'Ethans Prowess').suite.avgTotal;
+  const sbRef  = results6pc.find(b => b.key === 'Soulbound Ranked').suite.avgTotal;
+
+  console.log('\n' + '─'.repeat(72));
+  console.log(` ${'Build'.padEnd(30)} ${'AvgDmg'.padStart(7)} ${'vs Eth'.padStart(8)} ${'Turns'.padStart(6)} ${'Surv'.padStart(6)} ${'DoT%'.padStart(5)} ${'HP%'.padStart(5)}`);
+  console.log('  ' + '─'.repeat(67));
+  for (const b of results6pc) {
+    const s   = b.suite;
+    const vs  = s.avgTotal - ethRef;
+    const vsS = vs === 0 ? '   base' : (vs > 0 ? `+${vs}` : `${vs}`);
+    const tag = b.key === 'Soulbound Ranked' ? ' ◄' : '';
+    const label = b.key.length > 29 ? b.key.slice(0, 27) + '..' : b.key;
     console.log(
-      `  ${b.label.padEnd(26)}` +
-      ` ${b.s.avgTotal.toLocaleString().padStart(7)}` +
-      ` ${vsStr.padStart(8)}` +
-      ` ${b.s.avgTurns.padStart(6)}` +
-      ` ${b.s.avgStacks.padStart(7)}` +
-      ` ${b.s.dotShare.padStart(6)}` +
-      ` ${b.p.attack.toString().padStart(5)}`
+      ` ${label.padEnd(30)}` +
+      ` ${s.avgTotal.toLocaleString().padStart(7)}` +
+      ` ${vsS.padStart(8)}` +
+      ` ${s.avgTurns.padStart(6)}` +
+      ` ${s.survivalRate.padStart(6)}` +
+      ` ${s.dotShare.padStart(5)}` +
+      ` ${s.avgHpPct.padStart(5)}` +
+      tag
     );
   }
 
-  // ── Verdict ──
-  console.log('\n' + '═'.repeat(70));
-  console.log(' VERDICT');
-  console.log('═'.repeat(70));
+  // ═══════════════════════════════════════════════════════════════════════
+  //  SECTION 2 — ALL 3+3 MIXED BUILDS vs SB 6pc
+  // ═══════════════════════════════════════════════════════════════════════
+  console.log('\n' + '═'.repeat(72));
+  console.log(' SECTION 2 — ALL 3+3 MIXED BUILDS vs SB 6pc (Legendary)');
+  console.log(' Every unique pair from the 8 sets = 28 combinations, sorted by damage');
+  console.log('═'.repeat(72));
 
-  const ethansDmg  = sRef.avgTotal;
-  const committed  = sBase.avgTotal;
-  const oldDmg     = sOld.avgTotal;
-  const gapToRef   = ethansDmg - committed;
-  const gainVsOld  = committed - oldDmg;
-
-  console.log(`\n  Committed vs old baseline : +${gainVsOld} damage  (${oldDmg.toLocaleString()} → ${committed.toLocaleString()})`);
-  console.log(`  Committed vs Ethans       : ${gapToRef <= 0 ? '✅ beats reference' : `❌ ${gapToRef} behind (${(committed/ethansDmg*100).toFixed(1)}% of Ethans)`}`);
-  console.log(`  DoT share (committed)     : ${sBase.dotShare}`);
-  console.log(`  Avg survival turns        : ${sBase.avgTurns}/10  (old: ${sOld.avgTurns})`);
-
-  if (gapToRef > 0 && gapToRef <= 300) {
-    console.log(`\n  Close enough — within ${gapToRef} dmg of Ethans. AP DoT + energy scale looks balanced.`);
-  } else if (gapToRef > 300) {
-    console.log(`\n  Still ${gapToRef} behind Ethans. Consider also applying V4 lifesteal or raising 6pc decayBaseDmg.`);
-  } else {
-    console.log(`\n  SB now beats the burst reference — watch for over-tuning in real fights.`);
+  const ALL_SETS = Object.keys(THREE_PC);
+  const mixedBuilds = [];
+  for (let i = 0; i < ALL_SETS.length; i++) {
+    for (let j = i + 1; j < ALL_SETS.length; j++) {
+      const p = buildMixedPlayer('Legendary', ALL_SETS[i], ALL_SETS[j]);
+      const hasSB = ALL_SETS[i] === 'Soulbound Ranked' || ALL_SETS[j] === 'Soulbound Ranked';
+      const cfg = hasSB ? sbConfig : {};
+      mixedBuilds.push({ player: p, suite: runSuite(p, bossStats, n, cfg), hasSB });
+    }
   }
+  // Sort descending by avg damage
+  mixedBuilds.sort((a, b) => b.suite.avgTotal - a.suite.avgTotal);
+
+  // ── SB 6pc reference row ──
+  const sb6 = results6pc.find(b => b.key === 'Soulbound Ranked');
+  console.log(`\n  ${'Combo'.padEnd(12)} ${'AvgDmg'.padStart(7)} ${'vs SB6'.padStart(8)} ${'Turns'.padStart(6)} ${'DoT%'.padStart(5)} ${'ATK'.padStart(5)} ${'DEF'.padStart(5)} ${'Mechanics'} `);
+  console.log('  ' + '─'.repeat(74));
+  console.log(
+    `  ${'SB 6pc [ref]'.padEnd(12)}` +
+    ` ${sbRef.toLocaleString().padStart(7)}` +
+    `     ───` +
+    ` ${sb6.suite.avgTurns.padStart(6)}` +
+    ` ${sb6.suite.dotShare.padStart(5)}` +
+    ` ${buildPlayer('Legendary','Soulbound Ranked').attack.toString().padStart(5)}` +
+    ` ${buildPlayer('Legendary','Soulbound Ranked').defense.toString().padStart(5)}` +
+    `  AP-DoT both-turns 100%proc`
+  );
+  console.log('  ' + '─'.repeat(74));
+
+  mixedBuilds.forEach((r, idx) => {
+    const s   = r.suite;
+    const vs  = s.avgTotal - sbRef;
+    const vsS = vs === 0 ? '    ─' : (vs > 0 ? `+${vs}` : `${vs}`);
+    const mechs = [];
+    const p = r.player;
+    if (p.decayProcChance > 0)  mechs.push(`DoT${p.decayBothTurns ? '×2' : ''}`);
+    if (p.setProcRate     > 0)  mechs.push(`proc${(p.setProcRate*100).toFixed(0)}%`);
+    if (p.dodge           > 0)  mechs.push(`dodge${p.dodge}%`);
+    const sbTag = r.hasSB ? ' *' : '';
+    console.log(
+      `  ${(String(idx+1)+'.').padEnd(4)}${p.setName.padEnd(10)}` +
+      ` ${s.avgTotal.toLocaleString().padStart(7)}` +
+      ` ${vsS.padStart(8)}` +
+      ` ${s.avgTurns.padStart(6)}` +
+      ` ${s.dotShare.padStart(5)}` +
+      ` ${p.attack.toString().padStart(5)}` +
+      ` ${p.defense.toString().padStart(5)}` +
+      `  ${mechs.join(' ')}${sbTag}`
+    );
+  });
+
+  const sbMixed = mixedBuilds.filter(r => r.hasSB);
+  const nonSbMixed = mixedBuilds.filter(r => !r.hasSB);
+  const bestSbMix  = sbMixed[0];
+  const bestNonSb  = nonSbMixed[0];
+  const gapBest    = bestSbMix.suite.avgTotal - sbRef;
+  console.log(`\n  * = includes SB 3pc`);
+  console.log(`  Best SB-mixed: ${bestSbMix.player.setName}  →  ${bestSbMix.suite.avgTotal.toLocaleString()}  (${gapBest >= 0 ? '+' : ''}${gapBest} vs SB 6pc)`);
+  console.log(`  Best non-SB:   ${bestNonSb.player.setName}  →  ${bestNonSb.suite.avgTotal.toLocaleString()}`);
+  console.log(`  Top 5 vs SB 6pc gap: ${mixedBuilds.slice(0,5).map(r => `${r.player.setName} ${r.suite.avgTotal - sbRef >= 0 ? '+' : ''}${r.suite.avgTotal - sbRef}`).join('  |  ')}`);
+
+  // reassign resultsHybrid so VERDICT section still works
+  const resultsHybrid = sbMixed;
+
+  // ═══════════════════════════════════════════════════════════════════════
+  //  SECTION 3 — RARITY: Legendary vs Epic (SB 6pc)
+  // ═══════════════════════════════════════════════════════════════════════
+  console.log('\n' + '═'.repeat(72));
+  console.log(' SECTION 3 — RARITY: SB 6pc Legendary vs Epic');
+  console.log('═'.repeat(72));
+
+  const sbLeg  = buildPlayer('Legendary', 'Soulbound Ranked');
+  const sbEpic = buildPlayer('Epic',      'Soulbound Ranked');
+  const sLeg   = runSuite(sbLeg,  bossStats, n, sbConfig);
+  const sEpic  = runSuite(sbEpic, bossStats, n, sbConfig);
+
+  console.log(`\n  ${'Rarity'.padEnd(14)} ${'ATK'.padStart(5)} ${'DEF'.padStart(5)} ${'HP'.padStart(7)} ${'Energy'.padStart(7)} ${'Dmg/Stk'.padStart(9)} ${'AvgDmg'.padStart(7)} ${'DoT%'.padStart(6)} ${'HP%'.padStart(5)}`);
+  console.log('  ' + '─'.repeat(68));
+  for (const [label, p, s] of [['Legendary 6pc', sbLeg, sLeg], ['Epic 6pc', sbEpic, sEpic]]) {
+    const dps = p.decayBaseDmg + p.energy * (p.decayEnergyScaleFactor || 0.6);
+    console.log(
+      `  ${label.padEnd(14)}` +
+      ` ${p.attack.toString().padStart(5)}` +
+      ` ${p.defense.toString().padStart(5)}` +
+      ` ${p.hp.toLocaleString().padStart(7)}` +
+      ` ${p.energy.toFixed(0).padStart(7)}` +
+      ` ${dps.toFixed(1).padStart(9)}` +
+      ` ${s.avgTotal.toLocaleString().padStart(7)}` +
+      ` ${s.dotShare.padStart(6)}` +
+      ` ${s.avgHpPct.padStart(5)}`
+    );
+  }
+  const rarityGap = sLeg.avgTotal - sEpic.avgTotal;
+  console.log(`\n  Legendary advantage: +${rarityGap.toLocaleString()} damage (+${(rarityGap/sEpic.avgTotal*100).toFixed(1)}% over Epic)`);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  //  VERDICT
+  // ═══════════════════════════════════════════════════════════════════════
+  console.log('\n' + '═'.repeat(72));
+  console.log(' VERDICT');
+  console.log('═'.repeat(72));
+
+  const sorted6  = [...results6pc].sort((a, b) => b.suite.avgTotal - a.suite.avgTotal);
+  const sbRank   = sorted6.findIndex(b => b.key === 'Soulbound Ranked') + 1;
+  const topBuild = sorted6[0];
+  console.log(`\n  6pc rankings by avg damage:`);
+  sorted6.forEach((b, i) => {
+    const tag = b.key === 'Soulbound Ranked' ? ' ◄ SB' : '';
+    console.log(`    #${i+1}  ${b.suite.avgTotal.toLocaleString().padStart(7)}  ${b.key}${tag}`);
+  });
+
+  const bestHybrid = resultsHybrid.reduce((best, r) => r.suite.avgTotal > best.suite.avgTotal ? r : best);
+  const tankiest  = resultsHybrid.reduce((best, r) => parseFloat(r.suite.avgTurns) > parseFloat(best.suite.avgTurns) ? r : best);
+  console.log(`\n  Best hybrid (damage):         ${bestHybrid.player.setName}  →  ${bestHybrid.suite.avgTotal.toLocaleString()} (${bestHybrid.suite.avgTotal >= sbRef ? '+' : ''}${bestHybrid.suite.avgTotal - sbRef} vs SB 6pc)`);
+  console.log(`  Longest-lived hybrid:         ${tankiest.player.setName}  →  ${tankiest.suite.avgTurns} turns avg (vs SB6 ${results6pc.find(b=>b.key==='Soulbound Ranked').suite.avgTurns}t)`);
+  console.log(`\n  SB vs Ethans (burst ref): ${sbRef >= ethRef ? '✅ SB beats Ethans' : `${sbRef - ethRef} behind Ethans (${(sbRef/ethRef*100).toFixed(1)}%)`}`);
   console.log('\n');
   await mongoose.disconnect();
 }
