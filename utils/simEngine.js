@@ -4,6 +4,9 @@
  * Mirrors the combat constants from rpg.js exactly.
  */
 
+const { SET_BONUSES, ELEMENTAL_REACTIONS, REACTION_TOGGLES, getReactionKey } = require('./setbonuses');
+const { applyElementalReaction } = require('./elementalReactions');
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 const ARMOR_CONSTANT = 200;
 const getDR          = (def) => def / (def + ARMOR_CONSTANT);
@@ -256,6 +259,7 @@ function buildPlayer(rarity, setName, subProfile = DEFAULT_SUBPROFILE, itemLevel
     decayBothTurns, attackPenalty,
     setProcRate, damageBonus, burstDamage, dodge, swirlDamage,
     freezeChance, lifestealChance, lifestealPct, counterChance, counterDmgPct,
+    elementalReaction: null, reactionName: null,
     rarity, setName, mode: '6pc',
     rawAttack: Math.floor(rawAttack), defenseFlat, attackFlat,
     hpPct: hpPct + setHpPct
@@ -333,12 +337,22 @@ function buildMixedPlayer(rarity, set1, set2, subProfile = DEFAULT_SUBPROFILE, i
     'Justins Clapping':'Jus','Lilahs Cold Heart':'Lil','Hasagi':'Has',
     'Maries Zhongli Bodypillow':'Geo','Andys Soraka':'And' })[n] || n.slice(0,4);
 
+  // Elemental reaction from the two set elements
+  const elem1 = SET_BONUSES[set1]?.element;
+  const elem2 = SET_BONUSES[set2]?.element;
+  const reactionKey = getReactionKey(elem1, elem2);
+  const elementalReaction = (reactionKey && REACTION_TOGGLES[reactionKey])
+    ? (ELEMENTAL_REACTIONS[reactionKey] || null)
+    : null;
+
   return {
     level, attack, defense, hp: baseHp, crit, critMult, energy, procRate,
     decayProcChance, decayBaseDmg, decayEnergyScale, decayEnergyScaleFactor: 0.6,
     decayBothTurns, attackPenalty,
     setProcRate, damageBonus, burstDamage: 0, dodge, swirlDamage: 0,
     freezeChance: 0, lifestealChance: 0, lifestealPct: 0, counterChance: 0, counterDmgPct: 0,
+    elementalReaction,
+    reactionName: elementalReaction?.name || null,
     rarity, setName: `${abbrev(set1)}+${abbrev(set2)}`, mode: '3+3', set1, set2,
     rawAttack: Math.floor(rawAttack), defenseFlat, attackFlat,
     hpPct: hpPct + setHpPct
@@ -382,8 +396,17 @@ function simulateFight(player, boss, maxTurns = 10, config = {}) {
     hitCount++;
     normalDamage += baseHit;   // base damage (always)
     critDamage   += critBonus; // extra damage from crit only
-    totalDamage  += hit;
-    bossHp       -= hit;
+
+    // Elemental reaction (3+3 mixed builds) — bonus goes to proc bucket
+    let reactionBonus = 0;
+    if (player.elementalReaction) {
+      const rr = applyElementalReaction(hit, player.elementalReaction, { attack: player.attack }, null, player.setProcRate || 0);
+      reactionBonus = rr.damage - hit;
+      if (reactionBonus > 0) hit = rr.damage;
+    }
+    procDamage  += reactionBonus;
+    totalDamage += hit;
+    bossHp      -= hit;
 
     // Olivias proc
     if (player.setProcRate > 0 && Math.random() < player.setProcRate) {

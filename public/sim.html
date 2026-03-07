@@ -604,6 +604,7 @@ function renderResults(player, suite, n) {
   const html = `
     <div style="margin-bottom:8px;color:var(--accent2);font-weight:bold;">${player.setName}
       <span style="color:var(--muted);font-weight:normal;font-size:10px;"> — ${player.rarity} ${player.mode} — ${n} fights</span>
+      ${player.reactionName ? `<span style="color:var(--orange);font-size:10px;margin-left:6px;">⚗ ${player.reactionName}</span>` : ''}
     </div>
 
     <div class="result-grid" style="margin-bottom:10px;">
