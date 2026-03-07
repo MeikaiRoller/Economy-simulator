@@ -6,7 +6,7 @@ const ItemSchema = new mongoose.Schema({
   description: { type: String },
   rarity: {
     type: String,
-    enum: ["Common", "Uncommon", "Rare", "Epic", "Legendary"],
+    enum: ["Common", "Uncommon", "Rare", "Epic", "Legendary", "Transcendent"],
     default: "Common",
   },
   type: {
@@ -30,6 +30,7 @@ const ItemSchema = new mongoose.Schema({
       "Hasagi",
       "Maries Zhongli Bodypillow",
       "Andys Soraka",
+      "Soulbound Ranked",
       null
     ],
     default: null

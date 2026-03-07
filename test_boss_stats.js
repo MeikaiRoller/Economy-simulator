@@ -80,10 +80,35 @@ async function testBossStatCalculation() {
     console.log('BOSS STAT CALCULATION');
     console.log('='.repeat(80));
 
+    // ── Mirror the EXACT formula from rpg.js calculateBossStats ──
+    let totalAvgHp = 0;
+    let totalAvgDefense = 0;
+    for (const player of allPlayers) {
+      const buffs = await calculateActiveBuffs(player);
+      const playerDefense = Math.floor((12 + player.level + (buffs.defenseFlat || 0)) * (1 + buffs.defense));
+      const playerHp = Math.floor((250 + player.level * 15 + (buffs.hpFlat || 0)) * (1 + (buffs.hpPercent || 0)));
+      totalAvgHp += playerHp;
+      totalAvgDefense += playerDefense;
+    }
+    const avgPlayerHp = totalAvgHp / allPlayers.length;
+    const avgPlayerDefense = totalAvgDefense / allPlayers.length;
+
     const bossLevel = Math.ceil(avgLevel * 1.5);
-    const bossAttack = Math.ceil(avgDamageAllPlayers * 1.8);
     const bossDefense = Math.ceil((avgLevel + 12) * 1.5);
-    const bossMaxHp = Math.ceil(10000 + allPlayers.length * (avgDamageAllPlayers * 50));
+
+    // HP: same as rpg.js
+    const bossMaxHp = Math.ceil(10000 + allPlayers.length * (avgDamageAllPlayers * 15));
+
+    // ATK: target 8-turn kill on average player (same as rpg.js)
+    const targetTurnsToKill = 8;
+    const avgDodgeChance = 5;
+    const getDamageReduction = (def) => def / (def + 100);
+    const damageReductionAgainstBoss = getDamageReduction(avgPlayerDefense);
+    let bossAttackNeeded = Math.ceil(avgPlayerHp / targetTurnsToKill);
+    bossAttackNeeded = Math.ceil(bossAttackNeeded / (1 - avgDodgeChance / 100));
+    const baseAttack = Math.ceil(bossAttackNeeded / (1 - damageReductionAgainstBoss));
+    const minAttack = Math.ceil(avgDamageAllPlayers * 1.2);
+    const bossAttack = Math.max(baseAttack, minAttack);
 
     console.log(`\nAverage Player Level: ${avgLevel.toFixed(1)}`);
     console.log(`Average Player Damage/Turn: ${avgDamageAllPlayers.toFixed(1)}`);
@@ -100,16 +125,16 @@ async function testBossStatCalculation() {
     console.log('BOSS COMBAT ANALYSIS');
     console.log('='.repeat(80));
 
-    const avgPlayerDefense = allPlayers.reduce((sum, p) => sum + (12 + p.level), 0) / allPlayers.length;
-    const damageReduction = bossDefense / (bossDefense + 100);
-    const avgBossDamage = Math.floor(bossAttack * (1 - (avgPlayerDefense / (avgPlayerDefense + 100))));
+    const getDmgReduction = (def) => def / (def + 100);
+    const avgBossDamage = Math.floor(bossAttack * (1 - getDmgReduction(avgPlayerDefense)));
 
     console.log(`\nBoss does ~${avgBossDamage} damage per turn to avg player`);
     console.log(`Average player does ~${avgDamageAllPlayers.toFixed(1)} damage per turn to boss`);
-    console.log(`Avg player has ~${(250 + avgLevel * 15).toFixed(0)} HP`);
+    console.log(`Avg player has ~${avgPlayerHp.toFixed(0)} HP (with gear)`);
+    console.log(`Avg player defense: ${avgPlayerDefense.toFixed(0)}`);
     
     const turnsToKillBoss = Math.ceil(bossMaxHp / (avgDamageAllPlayers * allPlayers.length));
-    const turnsToKillPlayer = Math.ceil((250 + avgLevel * 15) / avgBossDamage);
+    const turnsToKillPlayer = avgBossDamage > 0 ? Math.ceil(avgPlayerHp / avgBossDamage) : 999;
 
     console.log(`\n📊 Raid Difficulty:`);
     console.log(`   Total group damage/turn: ${(avgDamageAllPlayers * allPlayers.length).toFixed(0)}`);

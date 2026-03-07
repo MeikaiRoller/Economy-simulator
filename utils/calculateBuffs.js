@@ -54,7 +54,8 @@ async function calculateActiveBuffs(userProfile) {
     elementalResonance: setBonusData.elementalResonance,
     elementalReaction: setBonusData.elementalReaction,
     dualMastery: setBonusData.dualMastery,
-    adaptiveBonus: setBonusData.adaptiveBonus
+    adaptiveBonus: setBonusData.adaptiveBonus,
+    decayConfig: setBonusData.decayConfig || null
   };
 
   // 4. Add buffs from individual items (main stat + sub-stats + legacy buffs)
@@ -69,34 +70,36 @@ async function calculateActiveBuffs(userProfile) {
     }
     const levelMultiplier = 1 + (levelBonusPercent / 100);
     
-    // New system: main stat (with level bonus)
+    // Main stat scales with item level — this is the primary reward for upgrading
     if (itemData.mainStat?.type && itemData.mainStat?.value) {
       const statType = itemData.mainStat.type;
       const boostedValue = itemData.mainStat.value * levelMultiplier;
       if (statType === 'attack') buffs.attackFlat += boostedValue;
       else if (statType === 'defense') buffs.defenseFlat += boostedValue;
       else if (statType === 'hp') buffs.hpFlat += boostedValue;
+      else if (statType === 'hp%') buffs.hpPercent += boostedValue / 100;
       else if (statType === 'critRate') buffs.critChance += boostedValue;
       else if (statType === 'critDMG') buffs.critDMG += boostedValue;
       else if (statType === 'energy') buffs.energy += boostedValue;
     }
     
-    // New system: sub-stats (with level bonus)
+    // Sub-stats are fixed at their rolled values — upgrading does NOT inflate them.
+    // Their value comes entirely from roll quality (rarity + luck at unlock thresholds).
     if (itemData.subStats?.length) {
       for (const subStat of itemData.subStats) {
         const statType = subStat.type;
-        const boostedValue = subStat.value * levelMultiplier;
+        const rawValue = subStat.value; // intentionally not multiplied by levelMultiplier
         
-        if (statType === 'attack') buffs.attackFlat += boostedValue;
-        else if (statType === 'attack%') buffs.attack += boostedValue / 100;
-        else if (statType === 'defense') buffs.defenseFlat += boostedValue;
-        else if (statType === 'defense%') buffs.defense += boostedValue / 100;
-        else if (statType === 'hp') buffs.hpFlat += boostedValue;
-        else if (statType === 'hp%') buffs.hpPercent += boostedValue / 100;
-        else if (statType === 'critRate') buffs.critChance += boostedValue;
-        else if (statType === 'critDMG') buffs.critDMG += boostedValue;
-        else if (statType === 'energy') buffs.energy += boostedValue;
-        else if (statType === 'luck') buffs.luck += boostedValue;
+        if (statType === 'attack') buffs.attackFlat += rawValue;
+        else if (statType === 'attack%') buffs.attack += rawValue / 100;
+        else if (statType === 'defense') buffs.defenseFlat += rawValue;
+        else if (statType === 'defense%') buffs.defense += rawValue / 100;
+        else if (statType === 'hp') buffs.hpFlat += rawValue;
+        else if (statType === 'hp%') buffs.hpPercent += rawValue / 100;
+        else if (statType === 'critRate') buffs.critChance += rawValue;
+        else if (statType === 'critDMG') buffs.critDMG += rawValue;
+        else if (statType === 'energy') buffs.energy += rawValue;
+        else if (statType === 'luck') buffs.luck += rawValue;
       }
     }
     
@@ -132,16 +135,22 @@ async function calculateActiveBuffs(userProfile) {
   buffs.lifestealChance += setBonuses.lifestealChance || 0;
   // 6. Final safeguard clamps to prevent extreme values
   buffs.attack = clamp(buffs.attack, 0, 10);
-  buffs.defense = clamp(buffs.defense, 0, 20); // Increased for tank builds with high defense% substats
-  buffs.hpPercent = clamp(buffs.hpPercent, 0, 20); // Increased for tank builds with high HP% substats
-  buffs.critChance = clamp(buffs.critChance, 0, 100);
-  buffs.critDMG = clamp(buffs.critDMG, 0, 500);
+  buffs.defense = clamp(buffs.defense, 0, 20);
+  buffs.hpPercent = clamp(buffs.hpPercent, 0, 20);
+  // Crit caps: 85% rate (guaranteed crits above this add no value, creates runaway scaling),
+  // 350% critDMG (base 100% + 250% from gear = still devastating but not infinite).
+  buffs.critChance = clamp(buffs.critChance, 0, 85);
+  buffs.critDMG = clamp(buffs.critDMG, 0, 350);
   buffs.dodge = clamp(buffs.dodge, 0, 50);
   buffs.lifesteal = clamp(buffs.lifesteal, 0, 100);
-  buffs.attackFlat = clamp(buffs.attackFlat, 0, 10000);
-  buffs.defenseFlat = clamp(buffs.defenseFlat, 0, 10000);
+  buffs.attackFlat = clamp(buffs.attackFlat, 0, 8000);
+  buffs.defenseFlat = clamp(buffs.defenseFlat, 0, 8000);
   buffs.hpFlat = clamp(buffs.hpFlat, 0, 50000);
-  // DEBUG: Final values for yvei
+
+  // Convert energy into proc rate bonus: every 10 energy = +1% proc chance, hard cap 25%.
+  // Stored as a 0-1 decimal to match procChance in elementalReactions.js.
+  buffs.procRate = clamp((buffs.procRate || 0) + (buffs.energy || 0) / 1000, 0, 0.25);
+
   return buffs;
 }
 

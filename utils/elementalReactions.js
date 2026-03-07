@@ -19,7 +19,7 @@
  * @param {object} defender - Defender stats (optional, for future use)
  * @returns {object} { damage: number, procs: string[], effects: object }
  */
-function applyElementalReaction(baseDamage, reactionData, attacker = null, defender = null) {
+function applyElementalReaction(baseDamage, reactionData, attacker = null, defender = null, procBonus = 0) {
   // No reaction data = no reaction
   if (!reactionData) {
     return { 
@@ -29,8 +29,8 @@ function applyElementalReaction(baseDamage, reactionData, attacker = null, defen
     };
   }
 
-  // Roll for proc chance
-  const procChance = reactionData.procChance || 0.15;
+  // Roll for proc chance — energy stat adds a bonus on top of the base reaction proc chance
+  const procChance = Math.min(1, (reactionData.procChance || 0.15) + procBonus);
   if (Math.random() >= procChance) {
     return { 
       damage: baseDamage, 

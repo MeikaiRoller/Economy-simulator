@@ -8,7 +8,8 @@ const SETS = {
   "Lilahs Cold Heart": { element: "cryo", emoji: "❄️" },
   "Hasagi": { element: "anemo", emoji: "💨" },
   "Maries Zhongli Bodypillow": { element: "geo", emoji: "🪨" },
-  "Andys Soraka": { element: "hydro", emoji: "💧" }
+  "Andys Soraka": { element: "hydro", emoji: "💧" },
+  "Soulbound Ranked": { element: null, emoji: "💀" }
 };
 
 const SLOT_EMOJIS = {
@@ -30,13 +31,14 @@ const RARITY_COLORS = {
 };
 
 // Main stat ranges by rarity and slot
+// Crit main stats (hands/feet) reduced at Legendary+ to prevent runaway stacking
 const MAIN_STAT_RANGES = {
-  weapon: { type: "attack", ranges: { Common: [15, 25], Uncommon: [25, 40], Rare: [40, 60], Epic: [60, 85], Legendary: [85, 120], Transcendent: [120, 160] }},
-  head: { type: "defense", ranges: { Common: [10, 18], Uncommon: [18, 30], Rare: [30, 45], Epic: [45, 65], Legendary: [65, 95], Transcendent: [95, 130] }},
-  chest: { type: "hp%", ranges: { Common: [8, 12], Uncommon: [12, 18], Rare: [18, 25], Epic: [25, 35], Legendary: [35, 50], Transcendent: [50, 70] }},
-  hands: { type: "critRate", ranges: { Common: [2, 4], Uncommon: [4, 7], Rare: [7, 11], Epic: [11, 16], Legendary: [16, 23], Transcendent: [23, 32] }},
-  feet: { type: "critDMG", ranges: { Common: [8, 15], Uncommon: [15, 25], Rare: [25, 40], Epic: [40, 60], Legendary: [60, 90], Transcendent: [90, 125] }},
-  accessory: { type: "energy", ranges: { Common: [5, 10], Uncommon: [10, 18], Rare: [18, 28], Epic: [28, 42], Legendary: [42, 65], Transcendent: [65, 90] }}
+  weapon: { type: "attack",   ranges: { Common: [15, 25], Uncommon: [25, 40], Rare: [40, 60], Epic: [60, 85],  Legendary: [85, 120],  Transcendent: [120, 155] }},
+  head:   { type: "defense",  ranges: { Common: [10, 18], Uncommon: [18, 30], Rare: [30, 45], Epic: [45, 65],  Legendary: [65, 95],   Transcendent: [95, 125]  }},
+  chest:  { type: "hp%",      ranges: { Common: [8, 12],  Uncommon: [12, 18], Rare: [18, 25], Epic: [25, 35],  Legendary: [35, 50],   Transcendent: [50, 68]   }},
+  hands:  { type: "critRate", ranges: { Common: [2, 4],   Uncommon: [4, 7],   Rare: [7, 10],  Epic: [10, 14],  Legendary: [14, 18],   Transcendent: [18, 24]   }},
+  feet:   { type: "critDMG",  ranges: { Common: [8, 15],  Uncommon: [15, 25], Rare: [25, 38], Epic: [38, 55],  Legendary: [55, 78],   Transcendent: [78, 105]  }},
+  accessory: { type: "energy",ranges: { Common: [5, 10],  Uncommon: [10, 18], Rare: [18, 28], Epic: [28, 42],  Legendary: [42, 65],   Transcendent: [65, 90]   }}
 };
 
 // Sub-stat roll ranges
@@ -47,22 +49,25 @@ const SUB_STAT_RANGES = {
   "defense%": { Common: [2, 5], Uncommon: [5, 9], Rare: [9, 14], Epic: [14, 20], Legendary: [20, 30], Transcendent: [30, 42] },
   "hp": { Common: [20, 40], Uncommon: [40, 70], Rare: [70, 110], Epic: [110, 160], Legendary: [160, 240], Transcendent: [240, 330] },
   "hp%": { Common: [2, 5], Uncommon: [5, 9], Rare: [9, 14], Epic: [14, 20], Legendary: [20, 30], Transcendent: [30, 42] },
-  "critRate": { Common: [1, 3], Uncommon: [3, 5], Rare: [5, 8], Epic: [8, 12], Legendary: [12, 18], Transcendent: [18, 26] },
-  "critDMG": { Common: [3, 8], Uncommon: [8, 14], Rare: [14, 22], Epic: [22, 33], Legendary: [33, 50], Transcendent: [50, 70] },
+  // critRate and critDMG sub-stat ranges tightened — these compound hard across 6 slots
+  "critRate": { Common: [1, 2], Uncommon: [2, 4], Rare: [4, 6], Epic: [6, 9],  Legendary: [9, 13],  Transcendent: [13, 18] },
+  "critDMG":  { Common: [3, 7], Uncommon: [7, 12], Rare: [12, 18], Epic: [18, 26], Legendary: [26, 38], Transcendent: [38, 52] },
   "energy": { Common: [2, 5], Uncommon: [5, 9], Rare: [9, 15], Epic: [15, 23], Legendary: [23, 35], Transcendent: [35, 50] },
   "luck": { Common: [0.02, 0.05], Uncommon: [0.05, 0.08], Rare: [0.08, 0.12], Epic: [0.12, 0.18], Legendary: [0.18, 0.27], Transcendent: [0.27, 0.38] }
 };
 
 const SUB_STAT_POOL = ["attack", "attack%", "defense", "defense%", "hp", "hp%", "critRate", "critDMG", "energy", "luck"];
 
-// Number of sub-stats by rarity
+// All items start with 2 substats at birth.
+// The 3rd is unlocked by upgrading to +5, the 4th by upgrading to +10.
+// At +15 the Inscription mechanic fires instead of a new substat.
 const SUB_STAT_COUNT = {
   Common: 2,
   Uncommon: 2,
-  Rare: 3,
-  Epic: 3,
-  Legendary: 4,
-  Transcendent: 5
+  Rare: 2,
+  Epic: 2,
+  Legendary: 2,
+  Transcendent: 2
 };
 
 /**
@@ -210,5 +215,7 @@ module.exports = {
   generateMultipleItems,
   rollRarity,
   SETS,
-  RARITY_COLORS
+  RARITY_COLORS,
+  SUB_STAT_RANGES,
+  SUB_STAT_POOL
 };

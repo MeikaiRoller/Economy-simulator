@@ -127,6 +127,7 @@ async function handleAdventure(interaction) {
     return; // Interaction expired, can't respond
   }
 
+  try {
   const userId = interaction.user.id;
   let userProfile = await UserProfile.findOne({ userId });
 
@@ -234,6 +235,9 @@ async function handleAdventure(interaction) {
     }
 
     // Fight simulation
+    let adventureDecayStacks = 0;
+    const adventureDecayConfig = activeBuffs.setInfo?.decayConfig || null;
+    const adventureEnergy = activeBuffs.energy || 0;
     while (playerCurrentHp > 0 && enemyHp > 0) {
       // Player attacks
       const variance = 0.8 + (Math.random() * 0.4); // 0.8 to 1.2
@@ -243,7 +247,7 @@ async function handleAdventure(interaction) {
       
       // Apply elemental reactions
       const playerReaction = activeBuffs.setInfo?.elementalReaction;
-      const reactionResult = applyElementalReaction(damage, playerReaction);
+      const reactionResult = applyElementalReaction(damage, playerReaction, null, null, activeBuffs.procRate || 0);
       damage = reactionResult.damage;
       
       // Apply healing from Swirl reactions
@@ -260,6 +264,23 @@ async function handleAdventure(interaction) {
       
       enemyHp -= damage;
 
+      // ── Soulbound Ranked: Decay proc + DoT tick (adventure) ──
+      if (adventureDecayConfig && enemyHp > 0) {
+        if (Math.random() < adventureDecayConfig.decayProcChance) adventureDecayStacks++;
+        if (adventureDecayStacks > 0) {
+          const sf = adventureDecayConfig.decayEnergyScaleFactor || 0.5;
+          const dmgPerStack = adventureDecayConfig.decayBaseDmg
+            + (adventureDecayConfig.decayEnergyScale ? adventureEnergy * sf : 0);
+          const drFactor = adventureDecayConfig.decayArmorPiercing ? 1 : (1 - getDamageReduction(enemy.defense));
+          const decayDmg = Math.floor(adventureDecayStacks * dmgPerStack * drFactor);
+          enemyHp -= decayDmg;
+          if (adventureDecayConfig.decayLifestealPct > 0) {
+            const heal = Math.floor(decayDmg * adventureDecayConfig.decayLifestealPct);
+            playerCurrentHp = Math.min(playerCurrentHp + heal, playerMaxHp);
+          }
+        }
+      }
+
       if (enemyHp <= 0) break;
 
       // Enemy attacks (no defense debuff for adventure since enemy doesn't have complex stats)
@@ -268,6 +289,20 @@ async function handleAdventure(interaction) {
       let enemyDamage = Math.floor(enemy.attack * (1 - playerDamageReduction) * enemyVariance);
       if (enemyDamage < 5) enemyDamage = 5;
       playerCurrentHp -= enemyDamage;
+
+      // ── Decay tick on enemy turn (6pc only) ──
+      if (adventureDecayConfig?.decayBothTurns && adventureDecayStacks > 0 && playerCurrentHp > 0) {
+        const sf = adventureDecayConfig.decayEnergyScaleFactor || 0.5;
+        const dmgPerStack = adventureDecayConfig.decayBaseDmg
+          + (adventureDecayConfig.decayEnergyScale ? adventureEnergy * sf : 0);
+        const drFactor = adventureDecayConfig.decayArmorPiercing ? 1 : (1 - getDamageReduction(enemy.defense));
+        const decayDmg = Math.floor(adventureDecayStacks * dmgPerStack * drFactor);
+        enemyHp -= decayDmg;
+        if (adventureDecayConfig.decayLifestealPct > 0) {
+          const heal = Math.floor(decayDmg * adventureDecayConfig.decayLifestealPct);
+          playerCurrentHp = Math.min(playerCurrentHp + heal, playerMaxHp);
+        }
+      }
     }
 
     if (playerCurrentHp <= 0) break;
@@ -375,6 +410,14 @@ async function handleAdventure(interaction) {
 
     await interaction.followUp({ embeds: [levelUpEmbed] });
   }
+  } catch (error) {
+    console.error('Adventure error:', error);
+    try {
+      await interaction.editReply({ content: '❌ Something went wrong during your adventure. Please try again!' });
+    } catch (replyError) {
+      console.error('Failed to send error reply:', replyError.message);
+    }
+  }
 }
 
 async function handleStats(interaction) {
@@ -407,7 +450,10 @@ async function handleStats(interaction) {
 }
 
 function calculateXPForLevel(level) {
-  return Math.floor(100 * Math.pow(level, 1.5));
+  // Exponential curve: each level requires ~20% more XP than the last.
+  // At max-stage adventure (~25,000 XP/run), the natural wall hits around level 35-40.
+  // Level 20 ≈ 11,500 XP | Level 30 ≈ 71,400 XP | Level 40 ≈ 442,600 XP
+  return Math.floor(300 * Math.pow(1.2, level));
 }
 
 async function handleLevelUp(userProfile) {
@@ -417,13 +463,13 @@ async function handleLevelUp(userProfile) {
     userProfile.level += 1;
     leveledUp = true;
 
-    userProfile.buffs.attackBoost += 0.1;
-    userProfile.buffs.defenseBoost += 0.1;
-    userProfile.buffs.magicBoost += 0.1;
-    userProfile.buffs.magicDefenseBoost += 0.1;
+    userProfile.buffs.attackBoost = Math.min(20, (userProfile.buffs.attackBoost || 0) + 0.1);
+    userProfile.buffs.defenseBoost = Math.min(20, (userProfile.buffs.defenseBoost || 0) + 0.1);
+    userProfile.buffs.magicBoost = Math.min(20, (userProfile.buffs.magicBoost || 0) + 0.1);
+    userProfile.buffs.magicDefenseBoost = Math.min(20, (userProfile.buffs.magicDefenseBoost || 0) + 0.1);
     // criticalChance removed - should come from gear only
-    userProfile.buffs.healingBoost += 0.1;
-    userProfile.buffs.xpBoost += 0.1;
+    userProfile.buffs.healingBoost = Math.min(20, (userProfile.buffs.healingBoost || 0) + 0.1);
+    userProfile.buffs.xpBoost = Math.min(20, (userProfile.buffs.xpBoost || 0) + 0.1);
   }
   if (leveledUp) {
     await userProfile.save();
@@ -1065,7 +1111,7 @@ async function simulatePvPCombatRealTime(challengerProfile, opponentProfile, cha
         let procMessages = [];
 
         // Apply elemental reactions using modular system
-        const reactionResult = applyElementalReaction(damage, challengerReaction);
+        const reactionResult = applyElementalReaction(damage, challengerReaction, null, null, challengerBuffs.procRate || 0);
         damage = reactionResult.damage;
         procMessages = reactionResult.procs;
         
@@ -1132,7 +1178,7 @@ async function simulatePvPCombatRealTime(challengerProfile, opponentProfile, cha
         let procMessages = [];
 
         // Apply elemental reactions using modular system
-        const oppReactionResult = applyElementalReaction(oppDamage, opponentReaction);
+        const oppReactionResult = applyElementalReaction(oppDamage, opponentReaction, null, null, opponentBuffs.procRate || 0);
         oppDamage = oppReactionResult.damage;
         procMessages = oppReactionResult.procs;
         
@@ -1581,7 +1627,43 @@ async function handleRaid(interaction) {
       // Re-fetch the boss to get the LATEST participants list AND leaderboard (not the stale snapshot from earlier)
       const latestBoss = await RaidBoss.findOne({ _id: raidBoss._id });
       console.log(`[RAID] Distributing rewards to ${latestBoss.participantsThisCycle.length} participants:`, latestBoss.participantsThisCycle);
-      
+
+      // ── Fair Reward Distribution ──────────────────────────────────────────
+      // Use sqrt-weighted shares to reduce whale dominance.
+      // A player doing 9x another's damage earns ~3x the reward, not 9x.
+      // Additionally, each player's share is soft-capped at 40% of the pool.
+
+      const DAMAGE_SHARE_CAP = 0.40; // Max 40% of pool per player
+      const MIN_PARTICIPATION_SHARE = 0.10; // Everyone gets at least 10% of base reward
+
+      // Step 1: Build sqrt weights for all leaderboard entries
+      const sqrtWeights = {};
+      let totalSqrtWeight = 0;
+      for (const entry of latestBoss.leaderboard) {
+        const w = Math.sqrt(Math.max(1, entry.damageDealt));
+        sqrtWeights[entry.userId] = w;
+        totalSqrtWeight += w;
+      }
+
+      // Step 2: Apply per-player cap and re-normalize
+      const cappedShares = {};
+      let totalCappedWeight = 0;
+      for (const entry of latestBoss.leaderboard) {
+        const rawShare = totalSqrtWeight > 0 ? sqrtWeights[entry.userId] / totalSqrtWeight : 0;
+        cappedShares[entry.userId] = Math.min(rawShare, DAMAGE_SHARE_CAP);
+        totalCappedWeight += cappedShares[entry.userId];
+      }
+      // Normalize so shares always sum to 1
+      for (const uid of Object.keys(cappedShares)) {
+        cappedShares[uid] = totalCappedWeight > 0 ? cappedShares[uid] / totalCappedWeight : 0;
+      }
+
+      console.log(`[RAID REWARDS] Fair share breakdown (sqrt-weighted, 40% cap):`);
+      for (const entry of latestBoss.leaderboard) {
+        console.log(`  ${entry.username}: raw ${(sqrtWeights[entry.userId] / totalSqrtWeight * 100).toFixed(1)}% → capped ${(cappedShares[entry.userId] * 100).toFixed(1)}%`);
+      }
+      // ─────────────────────────────────────────────────────────────────────
+
       for (let i = 0; i < latestBoss.participantsThisCycle.length; i++) {
         try {
           const participant = latestBoss.participantsThisCycle[i];
@@ -1592,21 +1674,23 @@ async function handleRaid(interaction) {
           }
           
           const participantEntry = latestBoss.leaderboard.find(e => e.userId === participant);
-          const damagePercent = participantEntry ? participantEntry.damageDealt / totalCycleDamage : 0;
           const placement = latestBoss.leaderboard.findIndex(e => e.userId === participant) + 1;
-          
-          // Base reward + damage% of money pool
-          const poolReward = Math.floor(moneyPool * damagePercent);
-          const reward = baseReward + poolReward;
+
+          // Fair share of the money pool (sqrt-weighted, capped)
+          const fairShare = cappedShares[participant] ?? (1 / latestBoss.participantsThisCycle.length);
+          const poolReward = Math.floor(moneyPool * fairShare);
+          // Minimum floor: everyone gets at least MIN_PARTICIPATION_SHARE * baseReward
+          const reward = Math.max(
+            Math.floor(baseReward * MIN_PARTICIPATION_SHARE),
+            baseReward + poolReward
+          );
           
           // Calculate XP based on damage dealt
           const participantDamage = participantEntry ? participantEntry.damageDealt : 0;
           const participantXpEarned = Math.floor(participantDamage * 2);
           
-          // TESTING: Log reward calculation
           console.log(`[RAID REWARDS] ${participant} (Placement: #${placement})`);
-          console.log(`  Damage: ${participantEntry ? participantEntry.damageDealt.toLocaleString() : 0} / ${totalCycleDamage.toLocaleString()} (${(damagePercent * 100).toFixed(2)}%)`);
-          console.log(`  Base: $${baseReward.toLocaleString()} + Pool: $${poolReward.toLocaleString()} = Total: $${reward.toLocaleString()}`);
+          console.log(`  Fair share: ${(fairShare * 100).toFixed(1)}% → Pool: $${poolReward.toLocaleString()} → Total: $${reward.toLocaleString()}`);
           
           // Update balance and XP atomically
           await UserProfile.updateOne(
@@ -1622,27 +1706,33 @@ async function handleRaid(interaction) {
           // Re-fetch profile for inventory update
           const updatedProfile = await UserProfile.findOne({ userId: participant });
           
-          // Item drops (victory)
+          // Item drops — flattened loot table so all top-5 have a real shot
           let droppedItem = null;
           const slots = ['weapon', 'head', 'chest', 'hands', 'feet', 'accessory'];
           const randomSlot = slots[Math.floor(Math.random() * slots.length)];
           
           if (placement === 1) {
-            droppedItem = generateItem(randomSlot, 'Legendary');
+            // #1: 70% Legendary, 30% Epic
+            droppedItem = generateItem(randomSlot, Math.random() < 0.70 ? 'Legendary' : 'Epic');
           } else if (placement === 2) {
-            const legChance = Math.random() < 0.5;
-            droppedItem = generateItem(randomSlot, legChance ? 'Legendary' : 'Epic');
+            // #2: 50% Legendary, 50% Epic
+            droppedItem = generateItem(randomSlot, Math.random() < 0.50 ? 'Legendary' : 'Epic');
           } else if (placement === 3) {
-            droppedItem = generateItem(randomSlot, 'Epic');
+            // #3: 30% Legendary, 70% Epic
+            droppedItem = generateItem(randomSlot, Math.random() < 0.30 ? 'Legendary' : 'Epic');
           } else if (placement <= 5) {
-            const epicChance = Math.random() < 0.3;
-            droppedItem = generateItem(randomSlot, epicChance ? 'Epic' : 'Rare');
-          } else if (placement <= 10) {
-            droppedItem = generateItem(randomSlot, 'Rare');
-          } else {
+            // #4–5: 15% Legendary, 50% Epic, 35% Rare
             const roll = Math.random();
-            if (roll < 0.25) droppedItem = generateItem(randomSlot, 'Rare');
-            else if (roll < 0.75) droppedItem = generateItem(randomSlot, 'Uncommon');
+            droppedItem = generateItem(randomSlot, roll < 0.15 ? 'Legendary' : roll < 0.65 ? 'Epic' : 'Rare');
+          } else if (placement <= 10) {
+            // #6–10: 5% Legendary, 25% Epic, 70% Rare
+            const roll = Math.random();
+            droppedItem = generateItem(randomSlot, roll < 0.05 ? 'Legendary' : roll < 0.30 ? 'Epic' : 'Rare');
+          } else {
+            // Others: 10% Rare, 40% Uncommon, 50% nothing
+            const roll = Math.random();
+            if (roll < 0.10) droppedItem = generateItem(randomSlot, 'Rare');
+            else if (roll < 0.50) droppedItem = generateItem(randomSlot, 'Uncommon');
           }
           
           if (droppedItem && updatedProfile) {
@@ -1837,24 +1927,26 @@ async function calculateBossStats() {
   // Base 10k + scales with both player count AND damage
   const maxHp = Math.ceil(10000 + allPlayers.length * (avgDamageAllPlayers * 15));
   
-  // ATTACK: Scaled to kill average player in ~5 turns
-  // Target is 5 turns, so avgPlayerHp / 5 damage needed per turn
-  // Account for player dodge (avg 15%) and defense reduction
-  const targetTurnsToKill = 5;
-  const avgDodgeChance = 15; // Average dodge chance
+  // ATTACK: Scaled to kill the average player in ~8 turns (out of 10 max).
+  // This lets mid-tier players land 6-8 hits before dying, making the turn
+  // cap feel like a real constraint rather than a death sentence after 2 hits.
+  const targetTurnsToKill = 8;
+  // Use 5% dodge (realistic across the player pool — most don't build dodge)
+  // Previously 15% was inflating boss ATK by ~18% for no reason.
+  const avgDodgeChance = 5;
   const damageReductionAgainstBoss = getDamageReduction(avgPlayerDefense);
   
-  // Boss needs to deal X damage per turn to kill in 5 turns
+  // Boss needs to deal X damage per turn to kill in 8 turns
   let bossAttackNeeded = Math.ceil(avgPlayerHp / targetTurnsToKill);
   
-  // Adjust for dodge (if 15% dodge, boss needs to deal more to account for missed turns)
+  // Adjust for dodge
   bossAttackNeeded = Math.ceil(bossAttackNeeded / (1 - avgDodgeChance / 100));
   
-  // Reverse the damage reduction formula: what attack stat is needed to deal this damage after defense?
+  // Reverse the damage reduction formula: what attack stat is needed?
   const baseAttack = Math.ceil(bossAttackNeeded / (1 - damageReductionAgainstBoss));
   
-  // Ensure it scales with player damage (at least 1.8x average player damage)
-  const minAttack = Math.ceil(avgDamageAllPlayers * 1.8);
+  // Floor: at least 1.2x average player damage (was 1.8x — too punishing)
+  const minAttack = Math.ceil(avgDamageAllPlayers * 1.2);
   const bossAttack = Math.max(baseAttack, minAttack);
 
   const bossDefense = Math.ceil((avgLevel + 12) * 1.5);
@@ -1914,6 +2006,11 @@ async function simulateRaidBattle(playerProfile, raidBoss, playerUser) {
   let fullCombatLog = ""; // Track full log for console
   let bossStunned = false;
 
+  // Soulbound Ranked — Decay DoT state
+  const decayConfig = playerBuffs.setInfo?.decayConfig || null;
+  let decayStacks = 0;
+  const playerEnergy = playerBuffs.energy || 0;
+
   // Combat stats for logging
   let statLog = {
     baseDamageHits: 0,
@@ -1924,7 +2021,10 @@ async function simulateRaidBattle(playerProfile, raidBoss, playerUser) {
     bossDodges: 0,
     totalCrushingBlowDamage: 0,
     totalOverloadDamage: 0,
-    totalLifestealHealing: 0
+    totalLifestealHealing: 0,
+    decayProcs: 0,
+    totalDecayDamage: 0,
+    decayLifestealHealing: 0
   };
 
   while (playerHp > 0 && bossHp > 0 && turn < maxTurns) {
@@ -1963,7 +2063,7 @@ async function simulateRaidBattle(playerProfile, raidBoss, playerUser) {
 
       // Apply elemental reactions using modular system
       const playerReaction = playerBuffs.setInfo?.elementalReaction;
-      const reactionResult = applyElementalReaction(totalHitDamage, playerReaction, { attack: playerAttack });
+      const reactionResult = applyElementalReaction(totalHitDamage, playerReaction, { attack: playerAttack }, null, playerBuffs.procRate || 0);
       totalHitDamage = reactionResult.damage;
       let procMessages = reactionResult.procs;
       
@@ -2015,6 +2115,35 @@ async function simulateRaidBattle(playerProfile, raidBoss, playerUser) {
       bossHp -= totalHitDamage;
       totalPlayerDamage += totalHitDamage;
 
+      // ── Soulbound Ranked: Decay proc + DoT tick (player turn) ──
+      if (decayConfig) {
+        // Try to add a decay stack
+        if (Math.random() < decayConfig.decayProcChance) {
+          decayStacks++;
+          statLog.decayProcs++;
+        }
+        // Tick DoT if any stacks are active
+        if (decayStacks > 0) {
+          const scaleFactor = decayConfig.decayEnergyScaleFactor || 0.5;
+          const dmgPerStack = decayConfig.decayBaseDmg
+            + (decayConfig.decayEnergyScale ? playerEnergy * scaleFactor : 0);
+          const drFactor = decayConfig.decayArmorPiercing ? 1 : (1 - getDamageReduction(raidBoss.defense));
+          const decayDmg = Math.floor(decayStacks * dmgPerStack * drFactor);
+          bossHp -= decayDmg;
+          totalPlayerDamage += decayDmg;
+          statLog.totalDecayDamage += decayDmg;
+          // Lifesteal from decay
+          if (decayConfig.decayLifestealPct > 0) {
+            const heal = Math.floor(decayDmg * decayConfig.decayLifestealPct);
+            playerHp = Math.min(playerHp + heal, maxPlayerHp);
+            statLog.decayLifestealHealing += heal;
+          }
+          const decayLog = `💣 **Decay** stacks: ${decayStacks} → **${decayDmg}** decay damage${decayConfig.decayLifestealPct > 0 ? ` (+${Math.floor(decayDmg * decayConfig.decayLifestealPct)} HP)` : ''}\n`;
+          fullCombatLog += decayLog;
+          if (shouldLogToDisplay) combatLog += decayLog;
+        }
+      }
+
       const procText = procMessages.length > 0 ? ` [${procMessages.join(", ")}]` : "";
       const attackLog = `⚔️ **${playerUser.username}** attacks for **${totalHitDamage}** damage${isCrit ? " (CRIT!)" : ""}${procText}\n`;
       const detailLog = `   └─ Base: ${baseDamage}${isCrit ? ` → Crit: ${Math.floor(baseDamage * (1 + playerCritDMG / 100))}` : ""}${procMessages.length > 0 ? ` + Reaction` : ""}\n`;
@@ -2052,10 +2181,29 @@ async function simulateRaidBattle(playerProfile, raidBoss, playerUser) {
         const bossAttackLog = `🔥 **${raidBoss.bossName}** attacks for **${bossDamage}** damage!\n`;
         fullCombatLog += bossAttackLog;
         if (shouldLogToDisplay) combatLog += bossAttackLog;
-      }
-    }
 
-    // Decrement debuff timers
+      // ── Soulbound Ranked: Decay DoT tick (boss turn, 6pc only) ──
+      if (decayConfig?.decayBothTurns && decayStacks > 0 && playerHp > 0) {
+        const scaleFactor = decayConfig.decayEnergyScaleFactor || 0.5;
+        const dmgPerStack = decayConfig.decayBaseDmg
+          + (decayConfig.decayEnergyScale ? playerEnergy * scaleFactor : 0);
+        const drFactor = decayConfig.decayArmorPiercing ? 1 : (1 - getDamageReduction(raidBoss.defense));
+        const decayDmg = Math.floor(decayStacks * dmgPerStack * drFactor);
+        bossHp -= decayDmg;
+        totalPlayerDamage += decayDmg;
+        statLog.totalDecayDamage += decayDmg;
+        if (decayConfig.decayLifestealPct > 0) {
+          const heal = Math.floor(decayDmg * decayConfig.decayLifestealPct);
+          playerHp = Math.min(playerHp + heal, maxPlayerHp);
+          statLog.decayLifestealHealing += heal;
+        }
+        const decayLog = `💣 **Decay** ticks (passive): **${decayDmg}** damage\n`;
+        fullCombatLog += decayLog;
+        if (shouldLogToDisplay) combatLog += decayLog;
+      }
+      } // end not-dodged
+    } // end not-stunned
+
     if (bossDefenseDebuff.active) {
       bossDefenseDebuff.turnsRemaining--;
       if (bossDefenseDebuff.turnsRemaining <= 0) {
@@ -2107,6 +2255,13 @@ async function simulateRaidBattle(playerProfile, raidBoss, playerUser) {
   }
   if (statLog.totalLifestealHealing > 0) {
     combatLog += `Lifesteal Heals: ${statLog.lifestealProcs} (+${statLog.totalLifestealHealing.toLocaleString()} HP)\n`;
+  }
+  if (statLog.totalDecayDamage > 0) {
+    const decayPct = Math.round(statLog.totalDecayDamage / totalPlayerDamage * 100);
+    combatLog += `Decay DoT: ${statLog.decayProcs} procs, ${decayStacks} stacks (+${statLog.totalDecayDamage.toLocaleString()} dmg, ${decayPct}%)\n`;
+    if (statLog.decayLifestealHealing > 0) {
+      combatLog += `Decay Lifesteal: +${statLog.decayLifestealHealing.toLocaleString()} HP\n`;
+    }
   }
   combatLog += `Boss Dodges: ${statLog.bossDodges}\n`;
 

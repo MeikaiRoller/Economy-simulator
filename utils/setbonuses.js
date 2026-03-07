@@ -1,80 +1,103 @@
 // Set bonus definitions
+// Last rebalance: 2026-03-06 — reduced Geo/Cryo dominance, normalized offensive reactions
 const SET_BONUSES = {
+  // Ethans Prowess (neutral attack) — slightly buffed to stay competitive
   "Ethans Prowess": {
     element: null,
-    "2": { attack: 0.10 },  // Nerfed from 0.15
-    "3": { attack: 0.15, defense: 0.08 },  // Nerfed from 0.25, 0.10
-    "6": { attack: 0.25, defense: 0.15, critRate: 5 }  // Nerfed from 0.50, 0.25, 10
+    "2": { attack: 0.12 },
+    "3": { attack: 0.18, defense: 0.06 },
+    "6": { attack: 0.30, defense: 0.10, critRate: 6 }
   },
+  // Olivias Fury (pyro) — slight buff on attack, proc trimmed
   "Olivias Fury": {
     element: "pyro",
-    "2": { attack: 0.10 },  // Nerfed from 0.15
-    "3": { attack: 0.15, procRate: 0.15 },  // Nerfed from 0.20, 0.30
-    "6": { attack: 0.25, procRate: 0.30, damageBonus: 0.15 }  // Nerfed from 0.50, 0.60, 0.25
+    "2": { attack: 0.12 },
+    "3": { attack: 0.18, procRate: 0.12 },
+    "6": { attack: 0.28, procRate: 0.22, damageBonus: 0.12 }
   },
+  // Justins Clapping (electro) — unchanged, energy builds are fair
   "Justins Clapping": {
     element: "electro",
-    "2": { energy: 15 },  // Nerfed from 20
-    "3": { energy: 25, critRate: 5 },  // Nerfed from 40, 8
-    "6": { energy: 50, critRate: 12, burstDamage: 0.25 }  // Nerfed from 80, 20, 0.40
+    "2": { energy: 15 },
+    "3": { energy: 25, critRate: 5 },
+    "6": { energy: 50, critRate: 10, burstDamage: 0.25 }
   },
+  // Lilahs Cold Heart (cryo) — NERFED: was giving too much crit for free on top of Geo defense
   "Lilahs Cold Heart": {
     element: "cryo",
-    "2": { critRate: 8 },  // Nerfed from 10
-    "3": { critRate: 12, critDMG: 15 },  // Nerfed from 20, 20
-    "6": { critRate: 20, critDMG: 35, freezeChance: 0.15 }  // Nerfed from 40, 60, 0.20
+    "2": { critRate: 6 },
+    "3": { critRate: 10, critDMG: 12 },
+    "6": { critRate: 16, critDMG: 26, freezeChance: 0.15 }
   },
+  // Hasagi (anemo) — unchanged, utility build is fair
   "Hasagi": {
     element: "anemo",
-    "2": { cooldownReduction: 8 },  // Nerfed from 10
-    "3": { cooldownReduction: 15, dodge: 6 },  // Nerfed from 20, 10
-    "6": { cooldownReduction: 25, dodge: 15, swirlDamage: 0.20 }  // Nerfed from 40, 25, 0.30
+    "2": { cooldownReduction: 8 },
+    "3": { cooldownReduction: 15, dodge: 6 },
+    "6": { cooldownReduction: 25, dodge: 15, swirlDamage: 0.20 }
   },
+  // Maries Zhongli Bodypillow (geo) — NERFED: defense% values reduced, all tiers pulled back
   "Maries Zhongli Bodypillow": {
     element: "geo",
-    "2": { defense: 0.15 },  // Nerfed from 0.20
-    "3": { defense: 0.25, hp: 0.10 },  // Nerfed from 0.35, 0.15
-    "6": { defense: 0.40, hp: 0.20, counterChance: 0.10 }  // Nerfed from 0.60, 0.30, 0.15
+    "2": { defense: 0.10 },
+    "3": { defense: 0.18, hp: 0.08 },
+    "6": { defense: 0.30, hp: 0.15, counterChance: 0.08 }
   },
+  // Andys Soraka (hydro) — slightly buffed, was underused
   "Andys Soraka": {
     element: "hydro",
-    "2": { hp: 0.15 },  // Nerfed from 0.20
-    "3": { hp: 0.25, healing: 0.18 },  // Nerfed from 0.35, 0.25
-    "6": { hp: 0.40, healing: 0.30, lifestealChance: 0.15 }  // Nerfed from 0.60, 0.50, 0.20
+    "2": { hp: 0.15 },
+    "3": { hp: 0.25, healing: 0.20 },
+    "6": { hp: 0.42, healing: 0.32, lifestealChance: 0.18 }
+  },
+  // Soulbound Ranked (null element) — DoT/stall set, trades burst for attrition via Decay stacks
+  // Incremental tier deltas. At 6pc: total attackPenalty 0.30, decayProcChance 1.00, decayBaseDmg 5
+  // DoT is armor-piercing (bypasses boss DR) and energy scales at 60%
+  "Soulbound Ranked": {
+    element: null,
+    decayArmorPiercing: true,       // DoT ignores boss damage reduction
+    decayEnergyScaleFactor: 0.6,    // energy * 0.6 added to dmg per stack
+    decayLifestealPct: 0.15,        // 15% of each DoT tick heals the player
+    "2": { attackPenalty: 0.20, decayProcChance: 0.50, decayBaseDmg: 3 },
+    "3": { attackPenalty: 0.10, decayProcChance: 0.20, decayBaseDmg: 1 },
+    "6": { attackPenalty: 0.00, decayProcChance: 0.30, decayBaseDmg: 1 }
+    // decayEnergyScale (3pc+) and decayBothTurns (6pc only) are boolean flags
+    // derived from piece count in calculateSetBonuses — not stored as tier values
   }
 };
 
 // Element resonance (when wearing 6 pieces of same set)
+// Cryo/Geo resonances nerfed to match set bonus reductions
 const ELEMENT_RESONANCE = {
   pyro: {
     name: "Pyro Resonance: Fervent Flames",
-    damageBonus: 0.09,  // Nerfed from 0.15 (was 0.25)
-    procRate: 0.12  // Nerfed from 0.20 (was 0.30)
+    damageBonus: 0.09,
+    procRate: 0.12
   },
   electro: {
     name: "Electro Resonance: High Voltage",
-    critDMG: 12,  // Nerfed from 20 (was 30)
-    energyRegen: 18  // Nerfed from 30 (was 50)
+    critDMG: 12,
+    energyRegen: 18
   },
   cryo: {
     name: "Cryo Resonance: Shattering Ice",
-    critRate: 6,  // Nerfed from 10 (was 15)
-    critDMG: 12  // Nerfed from 20 (was 30)
+    critRate: 5,   // Reduced from 6 — cryo 6pc total crit now 21% (was 26%)
+    critDMG: 10    // Reduced from 12
   },
   anemo: {
     name: "Anemo Resonance: Impetuous Winds",
-    dodge: 6,  // Nerfed from 10 (was 15)
-    swirlDamage: 0.09  // Nerfed from 0.15 (was 0.25)
+    dodge: 6,
+    swirlDamage: 0.09
   },
   geo: {
     name: "Geo Resonance: Enduring Rock",
-    defense: 0.09,  // Nerfed from 0.15 (was 0.25)
-    counterDamage: 0.18  // Nerfed from 0.30 (was 0.50)
+    defense: 0.07,       // Reduced from 0.09 — geo 6pc total defense now 37% (was 49%)
+    counterDamage: 0.15  // Reduced from 0.18
   },
   hydro: {
     name: "Hydro Resonance: Soothing Water",
-    hp: 0.09,  // Nerfed from 0.15 (was 0.25)
-    lifesteal: 0.06  // Nerfed from 0.10 (was 0.15)
+    hp: 0.09,
+    lifesteal: 0.06
   }
 };
 
@@ -129,34 +152,34 @@ const ELEMENTAL_REACTIONS = {
   },
   "cryo-electro": {
     name: "Superconduct",
-    effect: "Reduce enemy defense by 40% for 3 turns",
-    defenseReduction: 0.40,
-    procChance: 0.80
+    effect: "Reduce enemy defense by 30% for 3 turns",
+    defenseReduction: 0.30,   // Reduced from 0.40 — still impactful but not a 40% armor shred
+    procChance: 0.75
   },
   "cryo-hydro": {
     name: "Freeze",
-    effect: "50% chance to stun enemy for 1 turn",
-    stunChance: 0.50,
-    procChance: 0.70
+    effect: "40% chance to stun enemy for 1 turn",
+    stunChance: 0.40,         // Reduced from 0.50
+    procChance: 0.65
   },
   "cryo-pyro": {
     name: "Melt",
-    effect: "Next attack deals 2.0x damage",
-    damageMultiplier: 2.0,
-    procChance: 0.70
+    effect: "Next attack deals 1.7x damage",
+    damageMultiplier: 1.7,    // Reduced from 2.0 — was +40% avg damage, now +21%
+    procChance: 0.65          // Reduced from 0.70
   },
   "electro-pyro": {
     name: "Overload",
-    effect: "Add 100% of attack as bonus damage (ignores defense) + 50% stun chance",
-    bonusDamage: 1.0,
-    stunChance: 0.50,
-    procChance: 0.80
+    effect: "Add 65% of attack as bonus damage (ignores defense) + 35% stun chance",
+    bonusDamage: 0.65,        // Reduced from 1.0 — was adding a full extra hit worth of damage
+    stunChance: 0.35,         // Reduced from 0.50
+    procChance: 0.75          // Reduced from 0.80
   },
   "hydro-pyro": {
     name: "Vaporize",
-    effect: "Next attack deals 1.5x damage",
-    damageMultiplier: 1.5,
-    procChance: 0.90
+    effect: "Next attack deals 1.4x damage",
+    damageMultiplier: 1.4,    // Reduced from 1.5 — was too consistent at 90% proc
+    procChance: 0.80          // Reduced from 0.90
   },
   
   // ==========================================
@@ -260,21 +283,21 @@ const DUAL_MASTERY = {
   },
   "cryo-geo": {
     name: "Cryo Crystallize Mastery",
-    critRate: 8,
-    defense: 0.15,
-    hp: 0.10
+    critRate: 5,        // Reduced from 8 — was giving free crit on top of Geo's defense wall
+    defense: 0.08,      // Reduced from 0.15
+    hp: 0.06            // Reduced from 0.10
   },
   "cryo-hydro": {
     name: "Freeze Mastery",
-    critRate: 10,
-    critDMG: 25,
-    hp: 0.10
+    critRate: 8,        // Reduced from 10
+    critDMG: 20,        // Reduced from 25
+    hp: 0.08            // Reduced from 0.10
   },
   "cryo-pyro": {
     name: "Melt Mastery",
-    attack: 0.15,
-    critDMG: 20,
-    damageBonus: 0.10
+    attack: 0.12,       // Reduced from 0.15 — reaction itself nerfed, mastery follows
+    critDMG: 15,        // Reduced from 20
+    damageBonus: 0.08   // Reduced from 0.10
   },
   "electro-geo": {
     name: "Electro Crystallize Mastery",
@@ -336,35 +359,36 @@ function calculateAdaptiveBonus(rawStats) {
   
   // High Crit Build (50%+ crit rate) → Extra Crit Damage
   if (rawStats.critRate >= 50) {
-    adaptiveBonuses.bonuses.critDMG = (adaptiveBonuses.bonuses.critDMG || 0) + 35;
+    adaptiveBonuses.bonuses.critDMG = (adaptiveBonuses.bonuses.critDMG || 0) + 30;
     adaptiveBonuses.triggers.push("Critical Strike Master");
   }
   
-  // High HP Build (1200+ HP) → Lifesteal & HP boost
-  if (rawStats.hp >= 1200) {
-    adaptiveBonuses.bonuses.lifesteal = (adaptiveBonuses.bonuses.lifesteal || 0) + 0.12;
-    adaptiveBonuses.bonuses.hp = (adaptiveBonuses.bonuses.hp || 0) + 0.08;
+  // High HP Build (1400+ HP, raised threshold) → Lifesteal & HP boost
+  if (rawStats.hp >= 1400) {
+    adaptiveBonuses.bonuses.lifesteal = (adaptiveBonuses.bonuses.lifesteal || 0) + 0.10;
+    adaptiveBonuses.bonuses.hp = (adaptiveBonuses.bonuses.hp || 0) + 0.06;
     adaptiveBonuses.triggers.push("Fortified Vitality");
   }
   
   // High Dodge Build (10%+ dodge) → Counter damage & attack
   if (rawStats.dodge >= 10) {
-    adaptiveBonuses.bonuses.counterDamage = (adaptiveBonuses.bonuses.counterDamage || 0) + 0.35;
-    adaptiveBonuses.bonuses.attack = (adaptiveBonuses.bonuses.attack || 0) + 0.10;
+    adaptiveBonuses.bonuses.counterDamage = (adaptiveBonuses.bonuses.counterDamage || 0) + 0.28;
+    adaptiveBonuses.bonuses.attack = (adaptiveBonuses.bonuses.attack || 0) + 0.08;
     adaptiveBonuses.triggers.push("Evasive Striker");
   }
   
-  // High Attack Build (300+ attack) → Damage bonus
-  if (rawStats.attack >= 300) {
-    adaptiveBonuses.bonuses.damageBonus = (adaptiveBonuses.bonuses.damageBonus || 0) + 0.12;
-    adaptiveBonuses.bonuses.attack = (adaptiveBonuses.bonuses.attack || 0) + 0.08;
+  // High Attack Build (350+ attack, raised threshold) → Damage bonus
+  if (rawStats.attack >= 350) {
+    adaptiveBonuses.bonuses.damageBonus = (adaptiveBonuses.bonuses.damageBonus || 0) + 0.10;
+    adaptiveBonuses.bonuses.attack = (adaptiveBonuses.bonuses.attack || 0) + 0.07;
     adaptiveBonuses.triggers.push("Overwhelming Force");
   }
   
-  // High Defense Build (180+ defense) → Defense & counter chance
-  if (rawStats.defense >= 180) {
-    adaptiveBonuses.bonuses.defense = (adaptiveBonuses.bonuses.defense || 0) + 0.12;
-    adaptiveBonuses.bonuses.counterChance = (adaptiveBonuses.bonuses.counterChance || 0) + 0.08;
+  // High Defense Build (240+ defense, raised threshold) → Defense & counter chance
+  // Previously triggered at 180 which let Geo+Cryo compound their already-high defense
+  if (rawStats.defense >= 240) {
+    adaptiveBonuses.bonuses.defense = (adaptiveBonuses.bonuses.defense || 0) + 0.08;
+    adaptiveBonuses.bonuses.counterChance = (adaptiveBonuses.bonuses.counterChance || 0) + 0.05;
     adaptiveBonuses.triggers.push("Impenetrable Wall");
   }
   
@@ -417,7 +441,11 @@ function calculateSetBonuses(equippedItems) {
     lifestealChance: 0,
     swirlDamage: 0,
     burstDamage: 0,
-    freezeChance: 0
+    freezeChance: 0,
+    // Soulbound Ranked DoT properties (numeric, incremental across tiers)
+    attackPenalty: 0,
+    decayProcChance: 0,
+    decayBaseDmg: 0
   };
   
   const activeSetBonuses = [];
@@ -496,6 +524,23 @@ function calculateSetBonuses(equippedItems) {
     }
   });
   
+  // Build decay config for Soulbound Ranked (boolean flags derived from piece count)
+  const soulboundCount = setCounts["Soulbound Ranked"] || 0;
+  let decayConfig = null;
+  if (soulboundCount >= 2) {
+    const sbDef = SET_BONUSES["Soulbound Ranked"];
+    decayConfig = {
+      attackPenalty: bonuses.attackPenalty,
+      decayProcChance: Math.min(1, bonuses.decayProcChance),
+      decayBaseDmg: bonuses.decayBaseDmg,
+      decayEnergyScale: soulboundCount >= 3,           // 3pc+: DoT scales with energy
+      decayEnergyScaleFactor: sbDef.decayEnergyScaleFactor || 0.5,
+      decayBothTurns: soulboundCount >= 6,             // 6pc only: DoT ticks on boss turn too
+      decayArmorPiercing: sbDef.decayArmorPiercing || false,  // DoT ignores boss DR
+      decayLifestealPct: sbDef.decayLifestealPct || 0         // fraction of DoT healed back
+    };
+  }
+
   // Check for elemental reaction (3+3 different elements)
   if (activeElements.length === 2) {
     const reactionKey = getReactionKey(activeElements[0], activeElements[1]);
@@ -539,7 +584,8 @@ function calculateSetBonuses(equippedItems) {
     elementalResonance,
     elementalReaction,
     dualMastery,
-    adaptiveBonus
+    adaptiveBonus,
+    decayConfig
   };
 }
 

@@ -1,6 +1,7 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 const UserProfile = require('../../schema/UserProfile');
 const Item = require('../../schema/Item');
+const { SUB_STAT_RANGES, SUB_STAT_POOL } = require('../../utils/generateItem');
 
 // Enhancement costs per level (scales with rarity)
 const UPGRADE_COSTS = {
@@ -8,7 +9,8 @@ const UPGRADE_COSTS = {
   Uncommon: 10000,
   Rare: 20000,
   Epic: 40000,
-  Legendary: 80000
+  Legendary: 80000,
+  Transcendent: 200000
 };
 
 // Success rates by level
@@ -18,7 +20,7 @@ const SUCCESS_RATES = {
   10: 100, 11: 80, 12: 80, 13: 60, 14: 60, 15: 40
 };
 
-// Stat bonus per level
+// Stat bonus per level — applies to MAIN STAT only
 function getLevelBonus(level) {
   let totalBonus = 0;
   for (let i = 1; i <= level; i++) {
@@ -27,6 +29,20 @@ function getLevelBonus(level) {
     else totalBonus += 4;
   }
   return totalBonus;
+}
+
+// Roll a fresh substat at the item's rarity tier, avoiding already-used stat types
+function rollSubStat(rarity, excludeTypes = []) {
+  const available = SUB_STAT_POOL.filter(t => !excludeTypes.includes(t));
+  if (available.length === 0) return null;
+  const type = available[Math.floor(Math.random() * available.length)];
+  const tierRanges = SUB_STAT_RANGES[type];
+  const range = tierRanges[rarity] || tierRanges['Legendary'];
+  let value = Math.random() * (range[1] - range[0]) + range[0];
+  value = (type.includes('%') || type === 'luck')
+    ? Math.round(value * 10) / 10
+    : Math.floor(value);
+  return { type, value };
 }
 
 module.exports = {
@@ -87,6 +103,12 @@ module.exports = {
     
     // Calculate cost
     const cost = UPGRADE_COSTS[item.rarity];
+    if (!cost) {
+      return interaction.reply({
+        content: `❌ This item rarity (${item.rarity}) cannot be upgraded.`,
+        ephemeral: true
+      });
+    }
     const totalMoney = (userProfile.balance || 0) + (userProfile.bankBalance || 0);
     
     if (totalMoney < cost) {
@@ -121,28 +143,123 @@ module.exports = {
     
     if (success) {
       item.level += 1;
-      // Increase resale value by half the upgrade cost
+      const newLevel = item.level;
       const valueIncrease = Math.floor(cost * 0.5);
-      item.price = Math.max(0, (item.price || 0) + valueIncrease);
+      item.price = Math.max(0, (Number(item.price) || 0) + (isNaN(valueIncrease) ? 0 : valueIncrease));
+
+      // Main stat preview — only the main stat scales with level
+      const boostedMain = (() => {
+        const v = item.mainStat.value * (1 + newBonus / 100);
+        return (item.mainStat.type.includes('%') || item.mainStat.type === 'energy')
+          ? Math.round(v * 10) / 10
+          : Math.floor(v);
+      })();
+
+      // ── Milestone: unlock 3rd or 4th substat ──
+      let unlockedSub = null;
+      if (newLevel === 5 || newLevel === 10) {
+        const existingTypes = [item.mainStat.type, ...item.subStats.map(s => s.type)];
+        unlockedSub = rollSubStat(item.rarity, existingTypes);
+        if (unlockedSub) item.subStats.push(unlockedSub);
+        item.markModified('subStats');
+      }
+
+      // ── Milestone: Inscription at +15 ──
+      if (newLevel === 15) {
+        await item.save();
+        await userProfile.save();
+
+        embed.setTitle('⚒️ Enhancement — ✨ +15 MAX REACHED ✨');
+        embed.setColor(0xff8000);
+        embed.setDescription(
+          `**${item.name}** has reached maximum level!\n\n` +
+          `🔮 **INSCRIPTION** — Choose one substat to re-roll.\n` +
+          `The higher value is kept permanently. You have **30 seconds**.`
+        );
+        embed.addFields(
+          { name: `${item.mainStat.type} (main)`, value: `**${boostedMain}** *(+${newBonus}% from upgrades)*`, inline: false },
+          { name: 'Substats (fixed rolls)', value: item.subStats.map(s => `• **${s.type}**: ${s.value}`).join('\n') || 'None' }
+        );
+        embed.setFooter({ text: `Remaining Gold: ${((userProfile.balance || 0) + (userProfile.bankBalance || 0)).toLocaleString()}` });
+
+        const selectMenu = new StringSelectMenuBuilder()
+          .setCustomId('inscribe_select')
+          .setPlaceholder('Pick a substat to re-roll...')
+          .addOptions(item.subStats.map((sub, idx) => ({
+            label: `${sub.type}: ${sub.value}`,
+            description: 'Re-roll and keep the higher value',
+            value: String(idx)
+          })));
+
+        const row = new ActionRowBuilder().addComponents(selectMenu);
+        const reply = await interaction.reply({ embeds: [embed], components: [row] });
+
+        const doInscribe = async (subIdx, auto = false) => {
+          const chosenSub = item.subStats[subIdx];
+          const range = (SUB_STAT_RANGES[chosenSub.type]?.[item.rarity]) || (SUB_STAT_RANGES[chosenSub.type]?.['Legendary']);
+          let newRoll = Math.random() * (range[1] - range[0]) + range[0];
+          newRoll = (chosenSub.type.includes('%') || chosenSub.type === 'luck')
+            ? Math.round(newRoll * 10) / 10
+            : Math.floor(newRoll);
+          const oldVal = chosenSub.value;
+          const kept = Math.max(oldVal, newRoll);
+          item.subStats[subIdx].value = kept;
+          item.markModified('subStats');
+          await item.save();
+          return { chosenSub, oldVal, newRoll, kept, auto };
+        };
+
+        try {
+          const collected = await reply.awaitMessageComponent({
+            filter: i => i.user.id === interaction.user.id,
+            time: 30000
+          });
+          const { chosenSub, oldVal, newRoll, kept } = await doInscribe(parseInt(collected.values[0]));
+          const improved = kept > oldVal;
+          const resultEmbed = new EmbedBuilder()
+            .setTitle('🔮 Inscription Result')
+            .setColor(improved ? 0x00ff00 : 0xff8800)
+            .setDescription(
+              improved
+                ? `✨ **Upgraded!** \`${chosenSub.type}\`: ${oldVal} → **${kept}**`
+                : `↩️ **Held.** Re-rolled ${newRoll} — original **${oldVal}** was kept.`
+            );
+          await collected.update({ embeds: [embed, resultEmbed], components: [] });
+        } catch {
+          // Timeout — auto-inscribe the lowest-value substat
+          let lowestIdx = 0;
+          item.subStats.forEach((s, i) => { if (s.value < item.subStats[lowestIdx].value) lowestIdx = i; });
+          const { chosenSub, oldVal, kept } = await doInscribe(lowestIdx, true);
+          await interaction.editReply({
+            content: `⏰ Timed out — auto-inscribed **${chosenSub.type}**: ${oldVal} → **${kept}**`,
+            components: []
+          });
+        }
+        return;
+      }
+
+      // ── Normal upgrade (not a milestone) ──
       await item.save();
-      
-      embed.setDescription(`✅ **SUCCESS!**\n\n**${item.name}** has been enhanced to **+${item.level}**!`);
+
+      embed.setDescription(`✅ **SUCCESS!**\n\n**${item.name}** enhanced to **+${newLevel}**!`);
       embed.addFields(
-        { name: 'Current Bonus', value: `+${newBonus}% to all stats`, inline: true },
+        { name: `${item.mainStat.type} (main)`, value: `**${boostedMain}** *(+${newBonus}% from upgrades)*`, inline: true },
         { name: 'Success Rate', value: `${successRate}%`, inline: true },
         { name: 'Cost', value: `${cost.toLocaleString()} gold`, inline: true }
       );
-      
-      // Show stat preview
-      const mainStatValue = Math.floor(item.mainStat.value * (1 + newBonus / 100));
-      const sampleSubStat = item.subStats[0];
-      const subStatValue = sampleSubStat ? (sampleSubStat.value * (1 + newBonus / 100)).toFixed(1) : 'N/A';
-      
-      embed.addFields({
-        name: 'Enhanced Stats',
-        value: `${item.mainStat.type}: ${mainStatValue}\n${sampleSubStat ? sampleSubStat.type : 'substat'}: ${subStatValue}\n*(All stats receive +${newBonus}% bonus)*`
-      });
-      
+
+      if (unlockedSub) {
+        embed.addFields({
+          name: `🎲 New Substat Unlocked at +${newLevel}!`,
+          value: `**${unlockedSub.type}**: ${unlockedSub.value}\n*(This value is permanent — it will never be inflated by upgrades)*`
+        });
+      }
+
+      const nextMilestone = newLevel < 5 ? `+5` : newLevel < 10 ? `+10` : newLevel < 15 ? `+15 (Inscription)` : null;
+      const subDisplay = item.subStats.map(s => `• ${s.type}: ${s.value}`).join('\n') || 'None';
+      const milestoneNote = nextMilestone ? `\n\n*Next unlock: **${nextMilestone}***` : '';
+      embed.addFields({ name: 'Substats', value: subDisplay + milestoneNote });
+
     } else {
       embed.setDescription(`❌ **FAILED!**\n\n**${item.name}** failed to enhance and remains at **+${item.level}**.`);
       embed.addFields(
@@ -157,7 +274,7 @@ module.exports = {
     }
     
     embed.setFooter({ text: `Remaining Gold: ${((userProfile.balance || 0) + (userProfile.bankBalance || 0)).toLocaleString()}` });
-    
+
     await userProfile.save();
     await interaction.reply({ embeds: [embed] });
   }

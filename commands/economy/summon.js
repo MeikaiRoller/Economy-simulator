@@ -12,8 +12,8 @@ module.exports = {
         .setDescription('Number of summons (1 or 10)')
         .setRequired(true)
         .addChoices(
-          { name: '1x Summon (1,000,000 gold)', value: 1 },
-          { name: '10x Summon (10,000,000 gold)', value: 10 }
+          { name: '1x Summon (100,000 gold) 🎉 LIMITED EVENT', value: 1 },
+          { name: '10x Summon (1,000,000 gold) 🎉 LIMITED EVENT', value: 10 }
         )
     ),
 
@@ -21,7 +21,7 @@ module.exports = {
     const userId = interaction.user.id;
     const count = interaction.options.getInteger('count');
     
-    const cost = count === 1 ? 1000000 : 10000000;
+    const cost = count === 1 ? 100000 : 1000000;
 
     try {
       // Get user profile
@@ -146,7 +146,7 @@ module.exports = {
           }
         )
         .setFooter({ 
-          text: `Total Pulls: ${userProfile.gachaPityCounter} | Transcendent Rate: 0.05%` 
+          text: `🎉 LIMITED EVENT: 100k/pull | Total Pulls: ${userProfile.gachaPityCounter} | Transcendent Rate: 0.5%` 
         })
         .setTimestamp();
 
@@ -177,7 +177,7 @@ module.exports = {
  */
 function rollGachaRarity(pityCounter) {
   // Pure RNG - no pity system
-  const transcendentRate = 0.05; // 0.05% base rate
+  const transcendentRate = 0.5; // 0.5% base rate
 
   const roll = Math.random() * 100;
   
