@@ -369,15 +369,21 @@ function simulateFight(player, boss, maxTurns = 10, config = {}) {
 
     // Player attack
     const variance = 0.8 + Math.random() * 0.4;
-    let hit = Math.floor(player.attack * (1 - bossDR) * variance);
-    if (hit < 1) hit = 1;
+    let baseHit = Math.floor(player.attack * (1 - bossDR) * variance);
+    if (baseHit < 1) baseHit = 1;
     const isCrit = Math.random() * 100 < player.crit;
-    if (isCrit) hit = Math.floor(hit * (1 + player.critMult / 100));
+    let hit = baseHit;
+    let critBonus = 0;
+    if (isCrit) {
+      hit = Math.floor(baseHit * (1 + player.critMult / 100));
+      critBonus = hit - baseHit;
+      critCount++;
+    }
     hitCount++;
-    if (isCrit) { critDamage += hit; critCount++; }
-    else        { normalDamage += hit; }
-    totalDamage += hit;
-    bossHp      -= hit;
+    normalDamage += baseHit;   // base damage (always)
+    critDamage   += critBonus; // extra damage from crit only
+    totalDamage  += hit;
+    bossHp       -= hit;
 
     // Olivias proc
     if (player.setProcRate > 0 && Math.random() < player.setProcRate) {
