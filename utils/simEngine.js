@@ -7,6 +7,18 @@
 // ─── Constants ────────────────────────────────────────────────────────────────
 const ARMOR_CONSTANT = 200;
 const getDR          = (def) => def / (def + ARMOR_CONSTANT);
+
+// Mirrors the item level multiplier from calculateBuffs.js
+function getItemLevelMultiplier(itemLevel) {
+  let pct = 0;
+  for (let i = 1; i <= itemLevel; i++) {
+    if (i <= 5) pct += 2;
+    else if (i <= 10) pct += 3;
+    else pct += 4;
+  }
+  return 1 + pct / 100;
+}
+
 const getOffenseMult = (def) => {
   if (def < 450) return 1;
   const reduction = getDR(def);
@@ -147,28 +159,29 @@ function calcSubStats(rarity, profile, itemLevel = 10) {
 }
 
 // ─── Build a full 6pc player ───────────────────────────────────────────────────
-function buildPlayer(rarity, setName, subProfile = DEFAULT_SUBPROFILE, itemLevel = 10, mains = DEFAULT_MAINS) {
-  const level = 50;
+function buildPlayer(rarity, setName, subProfile = DEFAULT_SUBPROFILE, itemLevel = 10, mains = DEFAULT_MAINS, level = 85) {
+  const levelMult    = getItemLevelMultiplier(itemLevel);                // e.g. +45% at +15
+  const levelBuffPct = Math.min(20, level * 0.1) / 100;                 // level-based atk/def buff %
   const ma    = MAIN_AVG[rarity];
   const fma   = FLEX_MAIN_AVG[rarity];
   const subs  = calcSubStats(rarity, subProfile, itemLevel);
   const m     = { ...DEFAULT_MAINS, ...mains };
 
-  // Fixed mains (weapon = attack, head = defense)
-  let attackFlat  = ma.weapon + subs.attackFlat;
-  let defenseFlat = ma.head   + subs.defenseFlat;
-  let attackPct   = subs.attackPct;
-  let defensePct  = subs.defensePct;
+  // Fixed mains scaled by item level multiplier (mirrors calculateBuffs.js)
+  let attackFlat  = ma.weapon * levelMult + subs.attackFlat;
+  let defenseFlat = ma.head   * levelMult + subs.defenseFlat;
+  let attackPct   = subs.attackPct  + levelBuffPct;   // level-based attackBoost
+  let defensePct  = subs.defensePct + levelBuffPct;   // level-based defenseBoost
   let hpFlat      = subs.hpFlat;
   let hpPct       = subs.hpPct;
   let critChance  = subs.critRate;
   let critDMG     = subs.critDMG;
   let energy      = subs.energy;
 
-  // Flexible slot mains (chest, hands, feet, accessory each roll any stat)
+  // Flexible slot mains scaled by item level multiplier
   for (const slot of ['chest', 'hands', 'feet', 'accessory']) {
     const t = m[slot];
-    const v = fma[t] || 0;
+    const v = (fma[t] || 0) * levelMult;
     if (t === 'attack')          attackFlat  += v;
     else if (t === 'attackPct')  attackPct   += v / 100;
     else if (t === 'defense')    defenseFlat += v;
@@ -250,17 +263,18 @@ function buildPlayer(rarity, setName, subProfile = DEFAULT_SUBPROFILE, itemLevel
 }
 
 // ─── Build a 3+3 mixed player ─────────────────────────────────────────────────
-function buildMixedPlayer(rarity, set1, set2, subProfile = DEFAULT_SUBPROFILE, itemLevel = 10, mains = DEFAULT_MAINS) {
-  const level = 50;
+function buildMixedPlayer(rarity, set1, set2, subProfile = DEFAULT_SUBPROFILE, itemLevel = 10, mains = DEFAULT_MAINS, level = 85) {
+  const levelMult    = getItemLevelMultiplier(itemLevel);
+  const levelBuffPct = Math.min(20, level * 0.1) / 100;
   const ma    = MAIN_AVG[rarity];
   const fma   = FLEX_MAIN_AVG[rarity];
   const subs  = calcSubStats(rarity, subProfile, itemLevel);
   const m     = { ...DEFAULT_MAINS, ...mains };
 
-  let attackFlat  = ma.weapon + subs.attackFlat;
-  let defenseFlat = ma.head   + subs.defenseFlat;
-  let attackPct   = subs.attackPct;
-  let defensePct  = subs.defensePct;
+  let attackFlat  = ma.weapon * levelMult + subs.attackFlat;
+  let defenseFlat = ma.head   * levelMult + subs.defenseFlat;
+  let attackPct   = subs.attackPct  + levelBuffPct;
+  let defensePct  = subs.defensePct + levelBuffPct;
   let hpFlat      = subs.hpFlat;
   let hpPct       = subs.hpPct;
   let critChance  = subs.critRate;
@@ -269,8 +283,8 @@ function buildMixedPlayer(rarity, set1, set2, subProfile = DEFAULT_SUBPROFILE, i
 
   for (const slot of ['chest', 'hands', 'feet', 'accessory']) {
     const t = m[slot];
-    const v = fma[t] || 0;
-    if (t === 'attack')     attackFlat  += v;
+    const v = (fma[t] || 0) * levelMult;
+    if (t === 'attack')          attackFlat  += v;
     else if (t === 'attackPct')  attackPct   += v / 100;
     else if (t === 'defense')    defenseFlat += v;
     else if (t === 'defensePct') defensePct  += v / 100;
@@ -469,4 +483,4 @@ function sbConfig(player) {
     : {};
 }
 
-module.exports = { ALL_SETS, THREE_PC, SUBSTAT_KEYS, SUBSTAT_PROFILES, DEFAULT_SUBPROFILE, FLEX_MAIN_POOL, DEFAULT_MAINS, getDR, getOffenseMult, calcSubStats, buildPlayer, buildMixedPlayer, simulateFight, runSuite, sbConfig };
+module.exports = { ALL_SETS, THREE_PC, SUBSTAT_KEYS, SUBSTAT_PROFILES, DEFAULT_SUBPROFILE, FLEX_MAIN_POOL, DEFAULT_MAINS, getDR, getOffenseMult, getItemLevelMultiplier, calcSubStats, buildPlayer, buildMixedPlayer, simulateFight, runSuite, sbConfig };

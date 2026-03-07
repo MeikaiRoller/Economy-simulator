@@ -65,16 +65,16 @@ app.get('/api/boss', async (req, res) => {
 
 // ─── POST /api/build ──────────────────────────────────────────────────────────
 // Computes player stats from a set config. Applies manual overrides on top.
-// Body: { rarity, mode, set1, set2?, overrides?, subProfile?, itemLevel?, mains? }
+// Body: { rarity, mode, set1, set2?, overrides?, subProfile?, itemLevel?, mains?, level? }
 app.post('/api/build', (req, res) => {
-  const { rarity = 'Legendary', mode = '6pc', set1, set2, overrides = {}, subProfile = null, itemLevel = 10, mains = null } = req.body;
+  const { rarity = 'Legendary', mode = '6pc', set1, set2, overrides = {}, subProfile = null, itemLevel = 10, mains = null, level = 85 } = req.body;
   if (!set1) return res.status(400).json({ error: 'set1 is required' });
 
   let player;
   try {
     player = mode === '6pc'
-      ? buildPlayer(rarity, set1, subProfile || undefined, Number(itemLevel), mains || undefined)
-      : buildMixedPlayer(rarity, set1, set2 || set1, subProfile || undefined, Number(itemLevel), mains || undefined);
+      ? buildPlayer(rarity, set1, subProfile || undefined, Number(itemLevel), mains || undefined, Number(level))
+      : buildMixedPlayer(rarity, set1, set2 || set1, subProfile || undefined, Number(itemLevel), mains || undefined, Number(level));
   } catch (e) {
     return res.status(400).json({ error: e.message });
   }
