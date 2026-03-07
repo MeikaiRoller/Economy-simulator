@@ -352,9 +352,15 @@ function simulateFight(player, boss, maxTurns = 10, config = {}) {
   let playerHp     = player.hp;
   let bossHp       = boss.maxHp;
   let decayStacks  = 0;
-  let totalDamage  = 0, dotDamage = 0, directDamage = 0, turnsPlayed = 0;
+  let totalDamage  = 0, turnsPlayed = 0;
+  let normalDamage = 0; // non-crit base hits
+  let critDamage   = 0; // crit base hits (full value, not just bonus)
+  let procDamage   = 0; // set ability procs (Olivia/Justin/Swirl/Counter)
+  let dotDamage    = 0; // decay ticks
+  let hitCount     = 0; // total main-attack hits
+  let critCount    = 0; // how many were crits
 
-  const bossDR  = getDR(boss.defense);
+  const bossDR   = getDR(boss.defense);
   const playerDR = getDR(player.defense);
 
   for (let turn = 1; turn <= maxTurns; turn++) {
@@ -367,23 +373,25 @@ function simulateFight(player, boss, maxTurns = 10, config = {}) {
     if (hit < 1) hit = 1;
     const isCrit = Math.random() * 100 < player.crit;
     if (isCrit) hit = Math.floor(hit * (1 + player.critMult / 100));
-    directDamage += hit;
-    totalDamage  += hit;
-    bossHp       -= hit;
+    hitCount++;
+    if (isCrit) { critDamage += hit; critCount++; }
+    else        { normalDamage += hit; }
+    totalDamage += hit;
+    bossHp      -= hit;
 
     // Olivias proc
     if (player.setProcRate > 0 && Math.random() < player.setProcRate) {
       const bonus = Math.floor(hit * (player.damageBonus || 0));
-      bossHp       -= bonus;
-      totalDamage  += bonus;
-      directDamage += bonus;
+      bossHp      -= bonus;
+      totalDamage += bonus;
+      procDamage  += bonus;
     }
     // Justins burst on crit
     if (isCrit && player.burstDamage > 0) {
       const burst = Math.floor(hit * player.burstDamage);
-      bossHp       -= burst;
-      totalDamage  += burst;
-      directDamage += burst;
+      bossHp      -= burst;
+      totalDamage += burst;
+      procDamage  += burst;
     }
     // Andys lifesteal on hit
     if (player.lifestealChance > 0 && Math.random() < player.lifestealChance) {
@@ -416,9 +424,9 @@ function simulateFight(player, boss, maxTurns = 10, config = {}) {
     } else if (didDodge) {
       if (player.swirlDamage > 0) {
         const swirl = Math.floor(player.attack * (1 - bossDR) * 0.35 * player.swirlDamage);
-        bossHp       -= swirl;
-        totalDamage  += swirl;
-        directDamage += swirl;
+        bossHp      -= swirl;
+        totalDamage += swirl;
+        procDamage  += swirl;
       }
     } else {
       const bv  = 0.8 + Math.random() * 0.4;
@@ -427,9 +435,9 @@ function simulateFight(player, boss, maxTurns = 10, config = {}) {
       playerHp -= bd;
       if (player.counterChance > 0 && Math.random() < player.counterChance) {
         const ct = Math.floor(player.attack * (1 - bossDR) * (player.counterDmgPct || 0.15));
-        bossHp       -= ct;
-        totalDamage  += ct;
-        directDamage += ct;
+        bossHp      -= ct;
+        totalDamage += ct;
+        procDamage  += ct;
       }
     }
 
@@ -446,8 +454,12 @@ function simulateFight(player, boss, maxTurns = 10, config = {}) {
     }
   }
 
+  const directDamage = normalDamage + critDamage + procDamage;
   return {
-    totalDamage, directDamage, dotDamage, decayStacks, turnsPlayed,
+    totalDamage, directDamage, dotDamage,
+    normalDamage, critDamage, procDamage,
+    hitCount, critCount,
+    decayStacks, turnsPlayed,
     survived: playerHp > 0,
     finalHp: Math.max(0, playerHp),
     finalHpPct: maxPlayerHp > 0 ? Math.max(0, playerHp) / maxPlayerHp : 0
@@ -462,17 +474,33 @@ function runSuite(player, boss, n = 20, config = {}) {
   const pct = (a, b) => b > 0 ? `${(a / b * 100).toFixed(1)}%` : 'N/A';
 
   const avgTotal  = Math.round(avg(results.map(r => r.totalDamage)));
+  const avgNormal = Math.round(avg(results.map(r => r.normalDamage)));
+  const avgCrit   = Math.round(avg(results.map(r => r.critDamage)));
+  const avgProc   = Math.round(avg(results.map(r => r.procDamage)));
   const avgDot    = Math.round(avg(results.map(r => r.dotDamage)));
-  const avgDirect = Math.round(avg(results.map(r => r.directDamage)));
+  const avgDirect = avgNormal + avgCrit + avgProc; // backward compat
+  const avgTurns  = avg(results.map(r => r.turnsPlayed));
+
+  const totalHits    = results.reduce((s, r) => s + r.hitCount, 0);
+  const totalCrits   = results.reduce((s, r) => s + r.critCount, 0);
+  const actualCritPct = totalHits > 0 ? `${(totalCrits / totalHits * 100).toFixed(1)}%` : '0%';
 
   return {
-    avgTotal, avgDot, avgDirect,
-    avgTurns:     avg(results.map(r => r.turnsPlayed)).toFixed(1),
+    avgTotal, avgNormal, avgCrit, avgProc, avgDot,
+    avgDirect,
+    normalPct:  pct(avgNormal, avgTotal),
+    critPct:    pct(avgCrit,   avgTotal),
+    procPct:    pct(avgProc,   avgTotal),
+    dotPct:     pct(avgDot,    avgTotal),
+    // legacy keys kept for comparison table compatibility
+    dotShare:    pct(avgDot,    avgTotal),
+    directShare: pct(avgDirect, avgTotal),
+    avgTurns:     avgTurns.toFixed(1),
+    avgDpt:       avgTurns > 0 ? Math.round(avgTotal / avgTurns) : 0,
     avgStacks:    avg(results.map(r => r.decayStacks)).toFixed(1),
     survivalRate: `${results.filter(r => r.survived).length}/${n}`,
-    dotShare:     pct(avgDot, avgTotal),
-    directShare:  pct(avgDirect, avgTotal),
-    avgHpPct:     (avg(results.map(r => r.finalHpPct)) * 100).toFixed(0) + '%'
+    avgHpPct:     (avg(results.map(r => r.finalHpPct)) * 100).toFixed(0) + '%',
+    actualCritPct,
   };
 }
 

@@ -99,6 +99,8 @@
   .bar-wrap     { background: #1a1a2e; border-radius: 3px; height: 6px; margin-top: 4px; overflow: hidden; }
   .bar          { height: 100%; border-radius: 3px; transition: width 0.4s; }
   .bar-direct   { background: var(--accent2); }
+  .bar-crit     { background: var(--yellow); }
+  .bar-proc     { background: var(--orange); }
   .bar-dot      { background: var(--purple); }
   #add-compare-btn { display: none; margin-top: 10px; }
 
@@ -586,27 +588,34 @@ async function runSim() {
 
 // ─── Render results ───────────────────────────────────────────────────────────
 function renderResults(player, suite, n) {
-  const dotPct    = parseFloat(suite.dotShare) || 0;
-  const directPct = 100 - dotPct;
+  const nPct  = parseFloat(suite.normalPct) || 0;
+  const cPct  = parseFloat(suite.critPct)   || 0;
+  const prPct = parseFloat(suite.procPct)   || 0;
+  const dPct  = parseFloat(suite.dotPct)    || 0;
+
+  const dmgRow = (color, label, avg, pct) =>
+    `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid #1a1f27;">
+      <div style="width:10px;height:10px;border-radius:2px;background:${color};flex-shrink:0;"></div>
+      <span style="color:var(--muted);flex:1;">${label}</span>
+      <span style="color:var(--text);font-weight:bold;width:70px;text-align:right;">${avg.toLocaleString()}</span>
+      <span style="color:var(--muted);width:45px;text-align:right;">${pct}</span>
+    </div>`;
+
   const html = `
-    <div style="margin-bottom:6px;color:var(--accent2);font-weight:bold;">${player.setName}
+    <div style="margin-bottom:8px;color:var(--accent2);font-weight:bold;">${player.setName}
       <span style="color:var(--muted);font-weight:normal;font-size:10px;"> — ${player.rarity} ${player.mode} — ${n} fights</span>
     </div>
-    <div class="result-grid">
+
+    <div class="result-grid" style="margin-bottom:10px;">
       <div class="result-item">
         <span class="result-label">Avg Total Damage</span>
         <span class="result-val">${suite.avgTotal.toLocaleString()}</span>
-        <span class="result-sub">${suite.avgDirect.toLocaleString()} direct + ${suite.avgDot.toLocaleString()} DoT</span>
+        <span class="result-sub">${suite.avgDpt.toLocaleString()} dmg / turn</span>
       </div>
       <div class="result-item">
-        <span class="result-label">DoT Share</span>
-        <span class="result-val dot">${suite.dotShare}</span>
-        <div class="bar-wrap" style="margin-top:6px;">
-          <div style="display:flex;height:100%;">
-            <div class="bar bar-direct" style="width:${directPct}%;"></div>
-            <div class="bar bar-dot"    style="width:${dotPct}%;"></div>
-          </div>
-        </div>
+        <span class="result-label">Crit Rate (actual / stat)</span>
+        <span class="result-val" style="color:var(--yellow);">${suite.actualCritPct}</span>
+        <span class="result-sub">stat: ${Math.min(player.crit, 100).toFixed(1)}%</span>
       </div>
       <div class="result-item">
         <span class="result-label">Avg Turns</span>
@@ -616,17 +625,33 @@ function renderResults(player, suite, n) {
       <div class="result-item">
         <span class="result-label">Survival</span>
         <span class="result-val">${suite.survivalRate}</span>
-        <span class="result-sub">boss kills</span>
+        <span class="result-sub">${suite.avgHpPct} HP left avg</span>
       </div>
-      <div class="result-item">
-        <span class="result-label">Avg Decay Stacks</span>
-        <span class="result-val dot">${suite.avgStacks}</span>
+    </div>
+
+    <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:5px;">Damage Breakdown</div>
+    <div class="bar-wrap" style="height:10px;margin-bottom:8px;border-radius:4px;">
+      <div style="display:flex;height:100%;border-radius:4px;overflow:hidden;">
+        <div class="bar bar-direct" style="width:${nPct}%;"></div>
+        <div class="bar bar-crit"   style="width:${cPct}%;"></div>
+        <div class="bar bar-proc"   style="width:${prPct}%;"></div>
+        <div class="bar bar-dot"    style="width:${dPct}%;"></div>
       </div>
-      <div class="result-item">
-        <span class="result-label">Avg HP Remaining</span>
-        <span class="result-val">${suite.avgHpPct}</span>
+    </div>
+    <div style="font-size:11px;">
+      ${dmgRow('var(--accent2)', 'Normal Hits',  suite.avgNormal || 0, suite.normalPct || '0%')}
+      ${dmgRow('var(--yellow)',  'Crit Hits',    suite.avgCrit   || 0, suite.critPct   || '0%')}
+      ${dmgRow('var(--orange)',  'Set Procs',    suite.avgProc   || 0, suite.procPct   || '0%')}
+      ${dmgRow('var(--purple)',  'Decay DoT',    suite.avgDot    || 0, suite.dotPct    || '0%')}
+      <div style="display:flex;align-items:center;gap:6px;padding:4px 0;margin-top:2px;">
+        <div style="width:10px;height:10px;flex-shrink:0;"></div>
+        <span style="color:var(--muted);flex:1;padding-top:4px;border-top:1px solid #2a2f37;"></span>
+        <span style="color:var(--accent2);font-weight:bold;width:70px;text-align:right;padding-top:4px;border-top:1px solid #2a2f37;">${suite.avgTotal.toLocaleString()}</span>
+        <span style="color:var(--muted);width:45px;text-align:right;padding-top:4px;border-top:1px solid #2a2f37;">100%</span>
       </div>
-    </div>`;
+    </div>
+    ${Number(suite.avgStacks) > 0 ? `<div style="color:var(--purple);font-size:10px;margin-top:5px;">⚡ avg ${suite.avgStacks} decay stacks / fight</div>` : ''}
+  `;
   document.getElementById('result-content').innerHTML = html;
 }
 
