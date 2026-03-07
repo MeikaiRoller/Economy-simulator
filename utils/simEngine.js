@@ -5,7 +5,7 @@
  */
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const ARMOR_CONSTANT = 200;
+const ARMOR_CONSTANT = 400;
 const getDR          = (def) => def / (def + ARMOR_CONSTANT);
 const getOffenseMult = (def) => {
   if (def < 450) return 1;
