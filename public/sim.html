@@ -272,6 +272,11 @@
           <button id="ilvl-0"  class="btn-preset" onclick="updateSubLevel(0)">+0</button>
           <button id="ilvl-5"  class="btn-preset" onclick="updateSubLevel(5)">+5</button>
           <button id="ilvl-10" class="btn-preset active" onclick="updateSubLevel(10)">+10</button>
+          <button id="ilvl-15" class="btn-preset" onclick="updateSubLevel(15)">+15</button>
+        </div>
+        <span style="color:var(--muted);font-size:10px;margin-left:6px;">PLAYER LVL</span>
+        <div onclick="event.stopPropagation()">
+          <input id="player-level" type="number" min="1" max="150" value="85" style="width:50px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:2px 4px;font-size:12px;text-align:center;" oninput="activePlayerLevel=Number(this.value)||85; autoPreview();">
         </div>
         <span id="sub-toggle-icon" style="color:var(--muted);font-size:12px;">&#9660; expand</span>
       </div>
@@ -287,7 +292,7 @@
         <span id="sub-preset-btns"></span>
       </div>
       <div class="sub-slot-grid" id="sub-slot-grid"></div>
-      <div style="color:var(--muted);font-size:10px;margin-top:6px;">+0&thinsp;=&thinsp;2 subs &nbsp;&middot;&nbsp; +5 unlocks 3rd &nbsp;&middot;&nbsp; +10 unlocks 4th</div>
+      <div style="color:var(--muted);font-size:10px;margin-top:6px;">+0&thinsp;=&thinsp;2 subs &nbsp;&middot;&nbsp; +5 unlocks 3rd &nbsp;&middot;&nbsp; +10 unlocks 4th &nbsp;&middot;&nbsp; +15 max mains (×1.45)</div>
     </div>
   </div>
 
@@ -341,7 +346,8 @@ let sortAsc       = false;
 let substatKeys     = [];   // ['attack','attackPct', ...]
 let substatProfiles = {};   // { 'DoT Meta': {...}, ... }
 let activeSubPreset = 'DoT Meta';
-let activeItemLevel = 10;   // 0 = +0 (2 subs), 5 = +5 (3 subs), 10 = +10 (4 subs)
+let activeItemLevel   = 10;  // 0 = +0 (2 subs), 5 = +5 (3 subs), 10 = +10 (4 subs), 15 = +15
+let activePlayerLevel = 85;  // mirrors live-game level; affects base stats + level buffs
 let flexMainPool    = [];   // stat keys available as flex main stats
 let activeMains     = { chest: 'hpPct', hands: 'critRate', feet: 'critDMG', accessory: 'energy' };
 const FIXED_MAINS   = { weapon: 'attack', head: 'defense' }; // never change
@@ -430,7 +436,7 @@ async function autoPreview() {
     const r = await fetch('/api/build', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rarity, mode, set1, set2: mode === '3+3' ? set2 : undefined, subProfile: getSubProfile(), itemLevel: activeItemLevel, mains: getMains() })
+      body: JSON.stringify({ rarity, mode, set1, set2: mode === '3+3' ? set2 : undefined, subProfile: getSubProfile(), itemLevel: activeItemLevel, mains: getMains(), level: activePlayerLevel })
     });
     const p = await r.json();
     if (p.error) return;
@@ -546,7 +552,7 @@ async function runSim() {
     const buildRes = await fetch('/api/build', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rarity, mode, set1, set2: mode === '3+3' ? set2 : undefined, overrides, subProfile: getSubProfile(), itemLevel: activeItemLevel, mains: getMains() })
+      body: JSON.stringify({ rarity, mode, set1, set2: mode === '3+3' ? set2 : undefined, overrides, subProfile: getSubProfile(), itemLevel: activeItemLevel, mains: getMains(), level: activePlayerLevel })
     });
     const player = await buildRes.json();
     if (player.error) { alert(player.error); return; }
@@ -834,7 +840,7 @@ function updateSubLevel(level, doPreview = true) {
   // Refresh duplicate prevention after visibility changes
   ['weapon','head','chest','hands','feet','accessory'].forEach(refreshSlotOptions);
   // Update active button
-  [0,5,10].forEach(l => {
+  [0,5,10,15].forEach(l => {
     const btn = document.getElementById(`ilvl-${l}`);
     if (btn) btn.classList.toggle('active', l === level);
   });
