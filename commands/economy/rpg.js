@@ -17,7 +17,7 @@ let bossStatsCache = null;
 let bossStatsCacheTime = 0;
 
 // Defense scaling (higher = less reduction from high armor)
-const ARMOR_CONSTANT = 400;
+const ARMOR_CONSTANT = 200;
 const getDamageReduction = (defense) => defense / (defense + ARMOR_CONSTANT);
 const getOffenseMultiplierFromDefense = (defense) => {
   if (defense < 450) return 1; // No penalty below 450 DEF
